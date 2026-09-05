@@ -597,28 +597,32 @@ class _CharacterEditScreenState extends State<CharacterEditScreen> {
               const SizedBox(height: 32),
 
               // 섹션 4: 대화 시나리오 (연속 알림) 관리
-              Row(
-                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                 children: [
-                   Row(
-                     children: [
-                       Icon(Icons.mark_chat_unread_outlined, size: 20, color: theme.colorScheme.primary),
-                       const SizedBox(width: 8),
-                       Text(
-                         '대화 시나리오 (연속 알림)',
-                         style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
-                       ),
-                     ],
-                   ),
-                   if (isEditing)
-                     FilledButton.tonalIcon(
-                       icon: const Icon(Icons.add, size: 16),
-                       label: const Text('시나리오 추가'),
-                       style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
-                       onPressed: _navigateToAddBundle,
-                     ),
-                 ],
-               ),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.mark_chat_unread_outlined, size: 20, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        '대화 시나리오 (연속 알림)',
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+                      ),
+                    ],
+                  ),
+                  if (isEditing)
+                    FilledButton.tonalIcon(
+                      icon: const Icon(Icons.add, size: 16),
+                      label: const Text('시나리오 추가'),
+                      style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+                      onPressed: _navigateToAddBundle,
+                    ),
+                ],
+              ),
                const SizedBox(height: 6),
                Text(
                  '알림이 울릴 때 실제 메신저 대화처럼 여러 개의 메시지가 연속으로 도착하는 시나리오입니다.',

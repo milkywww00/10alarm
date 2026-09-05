@@ -75,48 +75,45 @@ class _MessageInputFieldState extends State<MessageInputField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        Text(
+          widget.label,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
           children: [
-            Text(
-              widget.label,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            ActionChip(
+              visualDensity: VisualDensity.compact,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              avatar: const Icon(Icons.bookmark_outline, size: 14),
+              label: const Text('{호칭}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              onPressed: () => _insertTag('{호칭}'),
             ),
-            Wrap(
-              spacing: 6,
-              children: [
-                ActionChip(
-                  visualDensity: VisualDensity.compact,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  avatar: const Icon(Icons.bookmark_outline, size: 14),
-                  label: const Text('{호칭}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  onPressed: () => _insertTag('{호칭}'),
-                ),
-                ActionChip(
-                  visualDensity: VisualDensity.compact,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  avatar: const Icon(Icons.person_outline, size: 14),
-                  label: const Text('{이름}', style: TextStyle(fontSize: 12)),
-                  onPressed: () => _insertTag('{이름}'),
-                ),
-                if (widget.showScheduleTag)
-                  ActionChip(
-                    visualDensity: VisualDensity.compact,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    avatar: const Icon(Icons.event_outlined, size: 14),
-                    label: const Text('{일정}', style: TextStyle(fontSize: 12)),
-                    onPressed: () => _insertTag('{일정}'),
-                  ),
-                if (widget.showTimeTag)
-                  ActionChip(
-                    visualDensity: VisualDensity.compact,
-                    labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                    avatar: const Icon(Icons.timer_outlined, size: 14),
-                    label: const Text('{시간}', style: TextStyle(fontSize: 12)),
-                    onPressed: () => _insertTag('{시간}'),
-                  ),
-              ],
+            ActionChip(
+              visualDensity: VisualDensity.compact,
+              labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+              avatar: const Icon(Icons.person_outline, size: 14),
+              label: const Text('{이름}', style: TextStyle(fontSize: 12)),
+              onPressed: () => _insertTag('{이름}'),
             ),
+            if (widget.showScheduleTag)
+              ActionChip(
+                visualDensity: VisualDensity.compact,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                avatar: const Icon(Icons.event_outlined, size: 14),
+                label: const Text('{일정}', style: TextStyle(fontSize: 12)),
+                onPressed: () => _insertTag('{일정}'),
+              ),
+            if (widget.showTimeTag)
+              ActionChip(
+                visualDensity: VisualDensity.compact,
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                avatar: const Icon(Icons.timer_outlined, size: 14),
+                label: const Text('{시간}', style: TextStyle(fontSize: 12)),
+                onPressed: () => _insertTag('{시간}'),
+              ),
           ],
         ),
         const SizedBox(height: 6),
