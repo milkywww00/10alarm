@@ -189,6 +189,26 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
       bundleId = null;
     }
 
+    final selectedChar = _characters.where((c) => c.id == _selectedCharacterId).firstOrNull;
+
+    String finalMessage = _messageController.text.trim();
+    if (finalMessage.isEmpty) {
+      if (_messageMode == 'SINGLE') {
+        finalMessage = (selectedChar?.defaultCalendarMessage?.trim().isNotEmpty == true)
+            ? selectedChar!.defaultCalendarMessage!.trim()
+            : '{호칭}, 오늘 {일정} 있는 날이야! 잊지 마~';
+      } else if (_messageMode == 'AI') {
+        finalMessage = '[AI 맞춤 일정 알림]';
+      } else if (_messageMode == 'RANDOM') {
+        finalMessage = '[랜덤 시나리오]';
+      } else if (_messageMode == 'BUNDLE') {
+        final selectedBundle = _bundles.where((b) => b.id == _selectedBundleId).firstOrNull;
+        finalMessage = (selectedBundle != null && selectedBundle.messages.isNotEmpty)
+            ? selectedBundle.messages.first
+            : (selectedChar?.defaultCalendarMessage ?? '{호칭}, 오늘 {일정} 잊지 마!');
+      }
+    }
+
     final scheduleItem = ScheduleItem(
       id: id,
       title: _titleController.text.trim(),
@@ -198,9 +218,7 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
       hour: _selectedTime.hour,
       minute: _selectedTime.minute,
       characterId: _selectedCharacterId!,
-      message: _messageController.text.trim().isNotEmpty
-          ? _messageController.text.trim()
-          : (_messageMode == 'AI' ? '[AI 맞춤 일정 알림]' : (_messageMode == 'RANDOM' ? '[랜덤 시나리오]' : '[시나리오 일정 알림]')),
+      message: finalMessage,
       bundleId: bundleId,
       isCompleted: widget.schedule?.isCompleted ?? false,
       createdAt: widget.schedule?.createdAt ?? DateTime.now(),

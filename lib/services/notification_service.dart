@@ -8,6 +8,8 @@ import '../models/chat_message.dart';
 import '../utils/message_formatter.dart';
 import 'storage_service.dart';
 
+import 'sound_service.dart';
+
 class NotificationService {
   static final NotificationService instance = NotificationService._();
   NotificationService._();
@@ -38,6 +40,10 @@ class NotificationService {
     await _notificationsPlugin.initialize(
       settings: initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
+        if (response.actionId == 'dismiss_alarm') {
+          SoundService.instance.stopAlarm();
+          return;
+        }
         if (onNotificationTap != null) {
           onNotificationTap!(response.payload);
         }
@@ -109,6 +115,20 @@ class NotificationService {
       fullScreenIntent: true,
       category: AndroidNotificationCategory.alarm,
       visibility: NotificationVisibility.public,
+      actions: const [
+        AndroidNotificationAction(
+          'dismiss_alarm',
+          '알람 끄기',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'open_chat',
+          '답장하기',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+      ],
     );
 
     final iosDetails = DarwinNotificationDetails(

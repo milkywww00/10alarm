@@ -12,11 +12,15 @@ import 'storage_service.dart';
 import 'notification_service.dart';
 import 'ai_chat_service.dart';
 
+import 'sound_service.dart';
+import 'theme_service.dart';
+
 // 안드로이드 백그라운드 격발을 위한 최상위 콜백 함수
 @pragma('vm:entry-point')
 void alarmFireCallback(int idHash) async {
   WidgetsFlutterBinding.ensureInitialized();
   await NotificationService.instance.init();
+  await ThemeService.instance.init();
 
   // 1. 알람 확인
   final alarms = await StorageService.instance.getAlarms();
@@ -24,6 +28,9 @@ void alarmFireCallback(int idHash) async {
   if (matchedAlarms.isNotEmpty) {
     final alarm = matchedAlarms.first;
     if (alarm.isEnabled) {
+      // 실제 알람 사운드 울림 시작
+      await SoundService.instance.startAlarmRinging();
+
       final character = await StorageService.instance.getCharacterById(alarm.characterId);
       if (character != null) {
         List<String> burstMessages = [];
@@ -71,9 +78,11 @@ void alarmFireCallback(int idHash) async {
               payload: '${character.id}#bundle_${alarm.id}',
             );
           } else {
-            final effectiveMessage = (character.defaultMorningMessage?.isNotEmpty == true)
-                ? character.defaultMorningMessage!
-                : alarm.message;
+            final effectiveMessage = (alarm.message.isNotEmpty && !alarm.message.startsWith('['))
+                ? alarm.message
+                : (character.defaultMorningMessage?.isNotEmpty == true
+                    ? character.defaultMorningMessage!
+                    : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?');
             await NotificationService.instance.showCharacterAlarmNotification(
               alarm: alarm.copyWith(message: effectiveMessage),
               character: character,
@@ -301,8 +310,13 @@ class AlarmScheduler {
         payload: '${character.id}#bundle_${alarm.id}',
       );
     } else {
+      final effectiveMessage = (alarm.message.isNotEmpty && !alarm.message.startsWith('['))
+          ? alarm.message
+          : (character.defaultMorningMessage?.isNotEmpty == true
+              ? character.defaultMorningMessage!
+              : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?');
       await NotificationService.instance.showCharacterAlarmNotification(
-        alarm: alarm,
+        alarm: alarm.copyWith(message: effectiveMessage),
         character: character,
       );
     }

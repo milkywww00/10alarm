@@ -2,12 +2,16 @@ import 'dart:math' as math;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
+import 'theme_service.dart';
+
 class SoundService {
   static final SoundService instance = SoundService._();
   SoundService._();
 
   final AudioPlayer _player = AudioPlayer();
+  final AudioPlayer _alarmPlayer = AudioPlayer();
   final ValueNotifier<String?> playingSoundNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> isAlarmRingingNotifier = ValueNotifier<bool>(false);
 
   Future<void> init() async {
     _player.onPlayerComplete.listen((_) {
@@ -15,7 +19,69 @@ class SoundService {
     });
   }
 
-  /// 알림음 미리듣기 재생
+  /// 실제 알람 울림 (알람 오디오 스트림 및 반복 재생)
+  Future<void> startAlarmRinging({String? soundName, String? customPath}) async {
+    try {
+      final selectedSound = soundName ?? ThemeService.instance.alarmSoundNotifier.value;
+      await _alarmPlayer.stop();
+      await _alarmPlayer.setReleaseMode(ReleaseMode.loop);
+
+      // 알람 전용 오디오 컨텍스트 (무음 모드 무시, 최대 스피커 알람 스트림)
+      await AudioPlayer.global.setAudioContext(
+        AudioContext(
+          android: const AudioContextAndroid(
+            isSpeakerphoneOn: true,
+            stayAwake: true,
+            contentType: AndroidContentType.music,
+            usageType: AndroidUsageType.alarm,
+            audioFocus: AndroidAudioFocus.gainTransientExclusive,
+          ),
+          iOS: AudioContextIOS(
+            category: AVAudioSessionCategory.playback,
+            options: const {
+              AVAudioSessionOptions.duckOthers,
+              AVAudioSessionOptions.defaultToSpeaker,
+            },
+          ),
+        ),
+      );
+
+      isAlarmRingingNotifier.value = true;
+
+      String? effectivePath = customPath;
+      if (effectivePath == null) {
+        final customSounds = ThemeService.instance.customSoundsNotifier.value;
+        final matched = customSounds.where((s) => s['name'] == selectedSound).firstOrNull;
+        if (matched != null && matched['path'] != null) {
+          effectivePath = matched['path'];
+        }
+      }
+
+      if (effectivePath != null && effectivePath.isNotEmpty) {
+        if (kIsWeb) {
+          await _alarmPlayer.play(UrlSource(effectivePath));
+        } else {
+          await _alarmPlayer.play(DeviceFileSource(effectivePath));
+        }
+        return;
+      }
+
+      final wavBytes = _generatePresetWav(selectedSound);
+      await _alarmPlayer.play(BytesSource(wavBytes));
+    } catch (e) {
+      debugPrint('알람 사운드 재생 실패: $e');
+    }
+  }
+
+  /// 알람 울림 정지
+  Future<void> stopAlarm() async {
+    try {
+      await _alarmPlayer.stop();
+    } catch (_) {}
+    isAlarmRingingNotifier.value = false;
+  }
+
+  /// 알림음 미리듣기 재생 (단발성)
   Future<void> playPreview(String soundName, {String? customPath}) async {
     try {
       // 현재 재생 중인 동일한 소리를 다시 누르면 정지

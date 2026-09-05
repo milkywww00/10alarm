@@ -14,6 +14,7 @@ import 'calendar_screen.dart';
 import 'chat_simulation_screen.dart';
 import 'chat_list_screen.dart';
 import 'settings_screen.dart';
+import 'alarm_ring_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -92,16 +93,33 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ChatSimulationScreen(
-            character: character,
-            alarm: matchedAlarm,
-            initialMessage: initialMsg,
+      if (targetId != null &&
+          (targetId.startsWith('schedule_') ||
+              targetId == 'pomodoro' ||
+              targetId == 'stopwatch')) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatSimulationScreen(
+              character: character,
+              alarm: matchedAlarm,
+              initialMessage: initialMsg,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        // 알람 울림 화면으로 진입 (알람음 울림 및 해제 제어)
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AlarmRingScreen(
+              character: character,
+              alarm: matchedAlarm,
+              message: initialMsg,
+            ),
+          ),
+        );
+      }
     }
   }
 
@@ -197,26 +215,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final character = _charactersMap[alarm.characterId];
     if (character == null) return;
 
-    await AlarmScheduler.instance.triggerPreview(alarm, character);
+    final effectiveMsg = (alarm.message.isNotEmpty && !alarm.message.startsWith('['))
+        ? alarm.message
+        : (character.defaultMorningMessage?.isNotEmpty == true
+            ? character.defaultMorningMessage!
+            : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?');
+
+    await AlarmScheduler.instance.triggerPreview(alarm.copyWith(message: effectiveMsg), character);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('\'${character.name}\'의 메시지 알림을 발송했습니다. 상단 바를 확인해 보세요!'),
-          action: SnackBarAction(
-            label: '채팅방 보기',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatSimulationScreen(
-                    character: character,
-                    alarm: alarm,
-                    initialMessage: alarm.message,
-                  ),
-                ),
-              );
-            },
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => AlarmRingScreen(
+            character: character,
+            alarm: alarm,
+            message: effectiveMsg,
           ),
         ),
       );

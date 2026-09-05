@@ -193,15 +193,33 @@ class _AlarmEditScreenState extends State<AlarmEditScreen> {
       bundleId = null;
     }
 
+    final selectedChar = _characters.where((c) => c.id == _selectedCharacterId).firstOrNull;
+
+    String finalMessage = _messageController.text.trim();
+    if (finalMessage.isEmpty) {
+      if (_messageMode == 'SINGLE') {
+        finalMessage = (selectedChar?.defaultMorningMessage?.trim().isNotEmpty == true)
+            ? selectedChar!.defaultMorningMessage!.trim()
+            : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?';
+      } else if (_messageMode == 'AI') {
+        finalMessage = '[AI 맞춤 모닝콜]';
+      } else if (_messageMode == 'RANDOM') {
+        finalMessage = '[랜덤 시나리오]';
+      } else if (_messageMode == 'BUNDLE') {
+        final selectedBundle = _bundles.where((b) => b.id == _selectedBundleId).firstOrNull;
+        finalMessage = (selectedBundle != null && selectedBundle.messages.isNotEmpty)
+            ? selectedBundle.messages.first
+            : (selectedChar?.defaultMorningMessage ?? '좋은 아침이야, {호칭}!');
+      }
+    }
+
     final alarmItem = AlarmItem(
       id: id,
       characterId: _selectedCharacterId!,
       hour: _selectedTime.hour,
       minute: _selectedTime.minute,
       repeatDays: _selectedDays.toList()..sort(),
-      message: _messageController.text.trim().isNotEmpty
-          ? _messageController.text.trim()
-          : (_messageMode == 'AI' ? '[AI 맞춤 모닝콜]' : (_messageMode == 'RANDOM' ? '[랜덤 시나리오]' : '[시나리오 알람]')),
+      message: finalMessage,
       bundleId: bundleId,
       isEnabled: widget.alarm?.isEnabled ?? true,
       createdAt: widget.alarm?.createdAt ?? DateTime.now(),
