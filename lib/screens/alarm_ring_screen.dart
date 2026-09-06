@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +8,7 @@ import '../models/alarm_item.dart';
 import '../models/character_profile.dart';
 import '../services/sound_service.dart';
 import '../services/theme_service.dart';
+import '../services/notification_service.dart';
 import '../utils/message_formatter.dart';
 import 'chat_simulation_screen.dart';
 
@@ -71,12 +72,18 @@ class _AlarmRingScreenState extends State<AlarmRingScreen>
   }
 
   void _dismissAlarm() {
+    if (widget.alarm != null) {
+      NotificationService.instance.cancelAlarmNotification(widget.alarm!.id.hashCode.abs());
+    }
     SoundService.instance.stopAlarm();
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
   }
 
   void _goToChat() {
+    if (widget.alarm != null) {
+      NotificationService.instance.cancelAlarmNotification(widget.alarm!.id.hashCode.abs());
+    }
     SoundService.instance.stopAlarm();
     Navigator.pushReplacement(
       context,

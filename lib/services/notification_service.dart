@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:uuid/uuid.dart';
@@ -7,6 +8,7 @@ import '../models/character_profile.dart';
 import '../models/chat_message.dart';
 import '../utils/message_formatter.dart';
 import 'storage_service.dart';
+import 'theme_service.dart';
 
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -22,6 +24,65 @@ class NotificationService {
   static const String channelId = 'fav_alarm_channel';
   static const String channelName = '최애 알람 채널';
   static const String channelDescription = '설정한 캐릭터의 가상 메시지 알람 알림입니다.';
+
+  /// 알람음 이름 -> Android res/raw 리소스 파일명 매핑
+  static String getRawResourceName(String soundName) {
+    switch (soundName) {
+      case '자명종':
+      case '자명종 (클래식 트윈벨)':
+        return 'mechanical_clock';
+      case '새소리':
+      case '새소리 (상쾌한 아침)':
+        return 'garden_birds';
+      case '피아노':
+      case '피아노 (포근한 선율)':
+        return 'gentle_piano';
+      case '디지털 알람':
+      case '디지털 알람 (전자식 비프)':
+      case '비프음':
+        return 'electronic_alarm';
+      case '클래식 벨':
+      case '벨소리':
+        return 'classic_bell';
+      case '심플 비프':
+      case '전자음':
+        return 'digital_beep';
+      case '마림바':
+      case '마림바 (경쾌한 멜로디)':
+      case '기본 알람':
+      case '기본 알람 벨':
+      default:
+        return 'cheerful_marimba';
+    }
+  }
+
+  /// 해당 사운드가 지정된 고유 알람 채널을 Android 시스템에 생성/확보
+  Future<String> ensureAlarmChannel(String soundName) async {
+    if (kIsWeb) return channelId;
+
+    final rawSoundName = getRawResourceName(soundName);
+    final specificChannelId = 'alarm_v3_$rawSoundName';
+
+    final androidPlugin = _notificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidPlugin != null) {
+      final channel = AndroidNotificationChannel(
+        specificChannelId,
+        '10Alarm 실시간 알람 ($soundName)',
+        description: '10Alarm 실시간 기상 알람 및 음원 채널',
+        importance: Importance.max,
+        playSound: true,
+        sound: RawResourceAndroidNotificationSound(rawSoundName),
+        audioAttributesUsage: AudioAttributesUsage.alarm,
+        enableVibration: true,
+        vibrationPattern: Int64List.fromList([0, 1000, 500, 1000, 500, 1000]),
+        enableLights: true,
+      );
+      await androidPlugin.createNotificationChannel(channel);
+    }
+    return specificChannelId;
+  }
 
   // 알림 클릭 시 화면 전환을 위한 콜백
   void Function(String? payload)? onNotificationTap;
@@ -44,9 +105,16 @@ class NotificationService {
       settings: initSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
         if (response.actionId == 'dismiss_alarm') {
+          if (response.id != null) {
+            _notificationsPlugin.cancel(id: response.id!);
+          }
           SoundService.instance.stopAlarm();
           return;
         }
+        if (response.id != null) {
+          _notificationsPlugin.cancel(id: response.id!);
+        }
+        SoundService.instance.stopAlarm();
         if (onNotificationTap != null) {
           onNotificationTap!(response.payload);
         }
@@ -77,8 +145,15 @@ class NotificationService {
   Future<void> showCharacterAlarmNotification({
     required AlarmItem alarm,
     required CharacterProfile character,
+    String? soundName,
   }) async {
     final int notifId = alarm.id.hashCode.abs();
+    final selectedSound = soundName ?? ThemeService.instance.alarmSoundNotifier.value;
+    final channelIdToUse = await ensureAlarmChannel(selectedSound);
+    final rawSoundName = getRawResourceName(selectedSound);
+
+    // 사운드 서비스 동시 발동 (앱 내부 오디오 엔진)
+    SoundService.instance.startAlarmRinging(soundName: selectedSound);
 
     AndroidBitmap<Object>? avatarBitmap;
     if (!kIsWeb && character.avatarPath != null && File(character.avatarPath!).existsSync()) {
@@ -107,17 +182,20 @@ class NotificationService {
     );
 
     final androidDetails = AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDescription,
+      channelIdToUse,
+      '10Alarm 실시간 알람 ($selectedSound)',
+      channelDescription: '10Alarm 실시간 기상 알람 및 음원 채널',
       importance: Importance.max,
-      priority: Priority.high,
+      priority: Priority.max,
       ticker: '${character.name}: $resolvedMessage',
       styleInformation: messagingStyle,
       largeIcon: avatarBitmap,
       fullScreenIntent: true,
       category: AndroidNotificationCategory.alarm,
       visibility: NotificationVisibility.public,
+      sound: RawResourceAndroidNotificationSound(rawSoundName),
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      additionalFlags: Int32List.fromList(<int>[4]), // FLAG_INSISTENT: 사용자가 끌 때까지 무한 반복 루프 울림
       actions: const [
         AndroidNotificationAction(
           'dismiss_alarm',
@@ -138,6 +216,7 @@ class NotificationService {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      sound: '$rawSoundName.caf',
       subtitle: character.name,
     );
 
@@ -348,8 +427,13 @@ class NotificationService {
     required CharacterProfile character,
     required String message,
     String? payload,
+    String? soundName,
   }) async {
     if (kIsWeb) return;
+
+    final selectedSound = soundName ?? ThemeService.instance.alarmSoundNotifier.value;
+    final channelIdToUse = await ensureAlarmChannel(selectedSound);
+    final rawSoundName = getRawResourceName(selectedSound);
 
     final tzDateTime = tz.TZDateTime.from(scheduledDate, tz.local);
     final resolvedMessage = MessageFormatter.format(message, character: character);
@@ -379,17 +463,20 @@ class NotificationService {
     );
 
     final androidDetails = AndroidNotificationDetails(
-      channelId,
-      channelName,
-      channelDescription: channelDescription,
+      channelIdToUse,
+      '10Alarm 실시간 알람 ($selectedSound)',
+      channelDescription: '10Alarm 실시간 기상 알람 및 음원 채널',
       importance: Importance.max,
-      priority: Priority.high,
+      priority: Priority.max,
       ticker: '${character.name}: $resolvedMessage',
       styleInformation: messagingStyle,
       largeIcon: avatarBitmap,
       fullScreenIntent: true,
       category: AndroidNotificationCategory.alarm,
       visibility: NotificationVisibility.public,
+      sound: RawResourceAndroidNotificationSound(rawSoundName),
+      audioAttributesUsage: AudioAttributesUsage.alarm,
+      additionalFlags: Int32List.fromList(<int>[4]), // FLAG_INSISTENT: 사용자가 끌 때까지 무한 반복 루프 울림
       actions: const [
         AndroidNotificationAction(
           'dismiss_alarm',
@@ -410,6 +497,7 @@ class NotificationService {
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
+      sound: '$rawSoundName.caf',
       subtitle: character.name,
     );
 
@@ -431,6 +519,7 @@ class NotificationService {
 
   Future<void> cancelAlarmNotification(int notifId) async {
     await _notificationsPlugin.cancel(id: notifId);
+    await SoundService.instance.stopAlarm();
   }
 
   Future<void> cancelAll() async {

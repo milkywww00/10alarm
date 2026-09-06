@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:android_alarm_manager_plus/android_alarm_manager_plus.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import '../models/alarm_item.dart';
 import '../models/character_profile.dart';
 import '../models/schedule_item.dart';
 import '../models/message_bundle.dart';
 import '../utils/message_formatter.dart';
+import '../main.dart';
+import '../screens/alarm_ring_screen.dart';
 import 'storage_service.dart';
 import 'notification_service.dart';
 import 'ai_chat_service.dart';
@@ -181,10 +184,76 @@ class AlarmScheduler {
   static final AlarmScheduler instance = AlarmScheduler._();
   AlarmScheduler._();
 
+  Timer? _foregroundTicker;
+  String? _lastTriggeredMinute;
+
   Future<void> init() async {
     if (!kIsWeb && Platform.isAndroid) {
       await AndroidAlarmManager.initialize();
     }
+    _startForegroundTicker();
+  }
+
+  /// 앱이 켜져있을 때(포그라운드) 정각에 알람 화면과 사운드를 즉시 작동시키는 실시간 타이머
+  void _startForegroundTicker() {
+    _foregroundTicker?.cancel();
+    _foregroundTicker = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkForegroundTriggers();
+    });
+  }
+
+  Future<void> _checkForegroundTriggers() async {
+    final now = DateTime.now();
+    final minuteKey = '${now.year}-${now.month}-${now.day} ${now.hour}:${now.minute}';
+    if (_lastTriggeredMinute == minuteKey) return;
+
+    // 1. 활성화된 알람 체크
+    final alarms = await StorageService.instance.getAlarms();
+    for (final alarm in alarms) {
+      if (!alarm.isEnabled) continue;
+      if (alarm.hour == now.hour && alarm.minute == now.minute) {
+        if (alarm.repeatDays.isEmpty || alarm.repeatDays.contains(now.weekday)) {
+          _lastTriggeredMinute = minuteKey;
+          await _triggerForegroundAlarm(alarm);
+          return;
+        }
+      }
+    }
+  }
+
+  Future<void> _triggerForegroundAlarm(AlarmItem alarm) async {
+    final character = await StorageService.instance.getCharacterById(alarm.characterId);
+    if (character == null) return;
+
+    final effectiveMessage = (alarm.message.isNotEmpty && !alarm.message.startsWith('['))
+        ? alarm.message
+        : (character.defaultMorningMessage?.isNotEmpty == true
+            ? character.defaultMorningMessage!
+            : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?');
+
+    // 1. 알람 화면(AlarmRingScreen)을 화면 최상단에 자동으로 즉각 전환 & 알람 사운드 무한 루프 울림
+    final navContext = navigatorKey.currentContext;
+    if (navContext != null) {
+      Navigator.push(
+        navContext,
+        MaterialPageRoute(
+          builder: (_) => AlarmRingScreen(
+            character: character,
+            alarm: alarm,
+            message: effectiveMessage,
+          ),
+        ),
+      );
+    } else {
+      SoundService.instance.startAlarmRinging();
+    }
+
+    // 2. 캐릭터의 푸시 알림은 알람 울림과 '완전히 별개'로 상태바/채팅에 전송
+    await NotificationService.instance.showCharacterAlarmNotification(
+      alarm: alarm,
+      character: character,
+      soundName: ThemeService.instance.alarmSoundNotifier.value,
+    );
   }
 
   // 다음 알람 실행 일시 계산
@@ -233,6 +302,7 @@ class AlarmScheduler {
         character: character,
         message: effectiveMessage,
         payload: '${character.id}#${alarm.id}',
+        soundName: ThemeService.instance.alarmSoundNotifier.value,
       );
     }
 

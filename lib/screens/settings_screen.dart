@@ -395,8 +395,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
                     children: ThemeService.presetColors.map((item) {
                       final Color color = item['color'] as Color;
                       final String name = item['name'] as String;
@@ -407,26 +408,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         child: Tooltip(
                           message: name,
                           child: Container(
-                            width: 44,
-                            height: 44,
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               color: color,
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: isSelected ? Colors.white : Colors.transparent,
-                                width: 3,
+                                width: 2.5,
                               ),
                               boxShadow: [
                                 if (isSelected)
                                   BoxShadow(
                                     color: color.withValues(alpha: 0.5),
-                                    blurRadius: 8,
-                                    spreadRadius: 2,
+                                    blurRadius: 6,
+                                    spreadRadius: 1.5,
                                   ),
                               ],
                             ),
                             child: isSelected
-                                ? const Icon(Icons.check_rounded, color: Colors.white, size: 24)
+                                ? const Icon(Icons.check_rounded, color: Colors.white, size: 20)
                                 : null,
                           ),
                         ),

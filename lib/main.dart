@@ -6,6 +6,8 @@ import 'services/alarm_scheduler.dart';
 import 'services/theme_service.dart';
 import 'services/ai_chat_service.dart';
 
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -35,6 +37,7 @@ class TenAlarmApp extends StatelessWidget {
           valueListenable: ThemeService.instance.themeModeNotifier,
           builder: (context, themeMode, _) {
             return MaterialApp(
+              navigatorKey: navigatorKey,
               title: '10Alarm',
               debugShowCheckedModeBanner: false,
               theme: ThemeData(
