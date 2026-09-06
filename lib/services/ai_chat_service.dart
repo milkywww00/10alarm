@@ -17,6 +17,8 @@ class AiChatService {
   static const String _keyOpenaiKey = 'ai_openai_key_v1';
   static const String _keyClaudeKey = 'ai_claude_key_v1';
   static const String _keyGeminiModel = 'ai_gemini_model_v1';
+  static const String _keyOpenaiModel = 'ai_openai_model_v1';
+  static const String _keyClaudeModel = 'ai_claude_model_v1';
 
   final ValueNotifier<bool> isAiEnabledNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> providerNotifier = ValueNotifier<String>('gemini');
@@ -24,6 +26,8 @@ class AiChatService {
   final ValueNotifier<String> openaiKeyNotifier = ValueNotifier<String>('');
   final ValueNotifier<String> claudeKeyNotifier = ValueNotifier<String>('');
   final ValueNotifier<String> geminiModelNotifier = ValueNotifier<String>('auto');
+  final ValueNotifier<String> openaiModelNotifier = ValueNotifier<String>('gpt-4o-mini');
+  final ValueNotifier<String> claudeModelNotifier = ValueNotifier<String>('claude-3-5-haiku-20241022');
 
   String get currentApiKey {
     if (providerNotifier.value == 'openai') {
@@ -44,6 +48,8 @@ class AiChatService {
     openaiKeyNotifier.value = prefs.getString(_keyOpenaiKey) ?? '';
     claudeKeyNotifier.value = prefs.getString(_keyClaudeKey) ?? '';
     geminiModelNotifier.value = prefs.getString(_keyGeminiModel) ?? 'auto';
+    openaiModelNotifier.value = prefs.getString(_keyOpenaiModel) ?? 'gpt-4o-mini';
+    claudeModelNotifier.value = prefs.getString(_keyClaudeModel) ?? 'claude-3-5-haiku-20241022';
   }
 
   Future<void> setAiEnabled(bool enabled) async {
@@ -63,6 +69,18 @@ class AiChatService {
     _cachedGeminiModel = null;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyGeminiModel, model);
+  }
+
+  Future<void> setOpenaiModel(String model) async {
+    openaiModelNotifier.value = model;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyOpenaiModel, model);
+  }
+
+  Future<void> setClaudeModel(String model) async {
+    claudeModelNotifier.value = model;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyClaudeModel, model);
   }
 
   Future<void> setGeminiKey(String key) async {
@@ -106,24 +124,32 @@ class AiChatService {
         };
       } else if (provider == 'openai') {
         // OpenAI
+        final model = openaiModelNotifier.value;
         final url = Uri.parse('https://api.openai.com/v1/chat/completions');
+        final isReasoning = model.startsWith('o1') || model.startsWith('o3');
+        final Map<String, dynamic> requestBody = {
+          'model': model,
+          'messages': [
+            {'role': 'user', 'content': 'Hello'}
+          ],
+        };
+        if (isReasoning) {
+          requestBody['max_completion_tokens'] = 10;
+        } else {
+          requestBody['max_tokens'] = 10;
+        }
+
         final response = await http.post(
           url,
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $key',
           },
-          body: jsonEncode({
-            'model': 'gpt-4o-mini',
-            'messages': [
-              {'role': 'user', 'content': 'Hello'}
-            ],
-            'max_tokens': 10,
-          }),
+          body: jsonEncode(requestBody),
         ).timeout(const Duration(seconds: 10));
 
         if (response.statusCode == 200) {
-          return {'success': true, 'message': 'OpenAI API 연결 성공!'};
+          return {'success': true, 'message': 'OpenAI API 연결 성공! (모델: $model)'};
         } else {
           final errBody = jsonDecode(utf8.decode(response.bodyBytes));
           final errMsg = errBody['error']?['message'] ?? '응답 코드 ${response.statusCode}';
@@ -131,6 +157,7 @@ class AiChatService {
         }
       } else {
         // Claude
+        final model = claudeModelNotifier.value;
         final url = Uri.parse('https://api.anthropic.com/v1/messages');
         final response = await http.post(
           url,
@@ -141,7 +168,7 @@ class AiChatService {
             'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: jsonEncode({
-            'model': 'claude-3-5-haiku-20241022',
+            'model': model,
             'messages': [
               {'role': 'user', 'content': 'Hello'}
             ],
@@ -150,7 +177,7 @@ class AiChatService {
         ).timeout(const Duration(seconds: 10));
 
         if (response.statusCode == 200) {
-          return {'success': true, 'message': 'Anthropic Claude API 연결 성공!'};
+          return {'success': true, 'message': 'Anthropic Claude API 연결 성공! (모델: $model)'};
         } else {
           final errBody = jsonDecode(utf8.decode(response.bodyBytes));
           final errMsg = errBody['error']?['message'] ?? '응답 코드 ${response.statusCode}';
@@ -515,18 +542,26 @@ class AiChatService {
       'content': userMessage,
     });
 
+    final model = openaiModelNotifier.value;
+    final isReasoning = model.startsWith('o1') || model.startsWith('o3');
+    final Map<String, dynamic> requestBody = {
+      'model': model,
+      'messages': messages,
+    };
+    if (isReasoning) {
+      requestBody['max_completion_tokens'] = 250;
+    } else {
+      requestBody['temperature'] = 0.85;
+      requestBody['max_tokens'] = 250;
+    }
+
     final response = await http.post(
       url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $key',
       },
-      body: jsonEncode({
-        'model': 'gpt-4o-mini',
-        'messages': messages,
-        'temperature': 0.85,
-        'max_tokens': 250,
-      }),
+      body: jsonEncode(requestBody),
     ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200) {
@@ -571,6 +606,7 @@ class AiChatService {
       'content': userMessage,
     });
 
+    final model = claudeModelNotifier.value;
     final response = await http.post(
       url,
       headers: {
@@ -580,7 +616,7 @@ class AiChatService {
         'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: jsonEncode({
-        'model': 'claude-3-5-haiku-20241022',
+        'model': model,
         'system': systemPrompt,
         'messages': messages,
         'max_tokens': 250,
@@ -688,21 +724,29 @@ ${detail != null ? "- 상세 내용: $detail" : ""}
       }
       throw Exception('Gemini 알림 문구 생성 실패');
     } else if (providerNotifier.value == 'openai') {
+      final model = openaiModelNotifier.value;
       final url = Uri.parse('https://api.openai.com/v1/chat/completions');
+      final isReasoning = model.startsWith('o1') || model.startsWith('o3');
+      final Map<String, dynamic> requestBody = {
+        'model': model,
+        'messages': [
+          {'role': 'user', 'content': prompt}
+        ],
+      };
+      if (isReasoning) {
+        requestBody['max_completion_tokens'] = 100;
+      } else {
+        requestBody['temperature'] = 0.85;
+        requestBody['max_tokens'] = 100;
+      }
+
       final response = await http.post(
         url,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $key',
         },
-        body: jsonEncode({
-          'model': 'gpt-4o-mini',
-          'messages': [
-            {'role': 'user', 'content': prompt}
-          ],
-          'temperature': 0.85,
-          'max_tokens': 100,
-        }),
+        body: jsonEncode(requestBody),
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -718,6 +762,7 @@ ${detail != null ? "- 상세 내용: $detail" : ""}
       throw Exception('OpenAI 알림 문구 생성 실패');
     } else {
       // Claude
+      final model = claudeModelNotifier.value;
       final url = Uri.parse('https://api.anthropic.com/v1/messages');
       final response = await http.post(
         url,
@@ -725,9 +770,10 @@ ${detail != null ? "- 상세 내용: $detail" : ""}
           'Content-Type': 'application/json',
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
         },
         body: jsonEncode({
-          'model': 'claude-3-5-haiku-20241022',
+          'model': model,
           'messages': [
             {'role': 'user', 'content': prompt}
           ],

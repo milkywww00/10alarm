@@ -24,6 +24,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   late bool _isAiEnabled;
   late String _aiProvider;
   late String _geminiModel;
+  late String _openaiModel;
+  late String _claudeModel;
   late TextEditingController _geminiKeyController;
   late TextEditingController _openaiKeyController;
   late TextEditingController _claudeKeyController;
@@ -48,6 +50,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     _isAiEnabled = AiChatService.instance.isAiEnabledNotifier.value;
     _aiProvider = AiChatService.instance.providerNotifier.value;
     _geminiModel = AiChatService.instance.geminiModelNotifier.value;
+    _openaiModel = AiChatService.instance.openaiModelNotifier.value;
+    _claudeModel = AiChatService.instance.claudeModelNotifier.value;
     _geminiKeyController = TextEditingController(text: AiChatService.instance.geminiKeyNotifier.value);
     _openaiKeyController = TextEditingController(text: AiChatService.instance.openaiKeyNotifier.value);
     _claudeKeyController = TextEditingController(text: AiChatService.instance.claudeKeyNotifier.value);
@@ -845,6 +849,100 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                           const SizedBox(height: 4),
                           Text(
                             '💡 1.5 Pro 모델은 캐릭터 말투와 지능이 가장 뛰어나지만 응답에 3~5초 소요될 수 있으며, 무료 사용량(분당 2회/일 50회)이 Flash(분당 15회/일 1,500회)보다 타이트합니다.',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ],
+                        if (isOpenAi) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _openaiModel,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: 'OpenAI 모델 선택 (상위 모델 지정)',
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              prefixIcon: const Icon(Icons.psychology_outlined, size: 20),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'gpt-4o-mini',
+                                child: Text('GPT-4o mini (표준 추천 - 빠르고 경제적)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gpt-4o',
+                                child: Text('GPT-4o (최상위 플래그십 - 깊은 페르소나 연기)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gpt-4-turbo',
+                                child: Text('GPT-4 Turbo (고성능 플래그십)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gpt-3.5-turbo',
+                                child: Text('GPT-3.5 Turbo (초경량 기본형)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'o3-mini',
+                                child: Text('o3-mini (최신 추론 특화)'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _openaiModel = val;
+                                  _testResult = null;
+                                });
+                                AiChatService.instance.setOpenaiModel(val);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '💡 GPT-4o 플래그십은 캐릭터 연기력이 탁월하지만 mini 대비 약 15배의 크레딧이 소진됩니다.',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ],
+                        if (!isGemini && !isOpenAi) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _claudeModel,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: 'Claude 모델 선택 (상위 모델 지정)',
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              prefixIcon: const Icon(Icons.hub_outlined, size: 20),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'claude-3-5-haiku-20241022',
+                                child: Text('Claude 3.5 Haiku (표준 추천 - 빠르고 경쾌함)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'claude-3-5-sonnet-20241022',
+                                child: Text('Claude 3.5 Sonnet (최상위 감성 문장력 - 몰입감 극대화)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'claude-3-opus-20240229',
+                                child: Text('Claude 3 Opus (심층 분석/대규모)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'claude-3-haiku-20240307',
+                                child: Text('Claude 3 Haiku (기본 경량형)'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _claudeModel = val;
+                                  _testResult = null;
+                                });
+                                AiChatService.instance.setClaudeModel(val);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '💡 Claude 3.5 Sonnet은 현존 최고의 감성 표현과 문장력을 자랑하지만 Haiku 대비 약 4배의 크레딧이 소진됩니다.',
                             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                           ),
                         ],
