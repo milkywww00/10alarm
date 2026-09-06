@@ -88,30 +88,12 @@ class AiChatService {
 
     try {
       if (provider == 'gemini') {
-        final response = await _sendGeminiRequest(
-          key: key,
-          body: {
-            'contents': [
-              {
-                'parts': [
-                  {'text': 'Hello'}
-                ]
-              }
-            ],
-            'generationConfig': {
-              'maxOutputTokens': 10,
-            }
-          },
-          timeout: const Duration(seconds: 10),
-        );
-
-        if (response.statusCode == 200) {
-          return {'success': true, 'message': 'Google Gemini API 연결 성공!'};
-        } else {
-          final errBody = jsonDecode(utf8.decode(response.bodyBytes));
-          final errMsg = errBody['error']?['message'] ?? '응답 코드 ${response.statusCode}';
-          return {'success': false, 'message': '연결 실패: $errMsg'};
-        }
+        _cachedGeminiModel = null;
+        final model = await _resolveGeminiModel(key);
+        return {
+          'success': true,
+          'message': 'Google Gemini API 연결 성공! (활성 모델: $model)',
+        };
       } else if (provider == 'openai') {
         // OpenAI
         final url = Uri.parse('https://api.openai.com/v1/chat/completions');
@@ -320,23 +302,72 @@ class AiChatService {
     }
   }
 
-  static const List<String> _geminiCandidateUrls = [
-    'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
-    'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent',
-  ];
+  String? _cachedGeminiModel;
+
+  /// Google AI Studio의 ListModels API를 통해 활성화된 모델 목록을 동적으로 탐색합니다.
+  Future<String> _resolveGeminiModel(String key) async {
+    if (_cachedGeminiModel != null && _cachedGeminiModel!.isNotEmpty) {
+      return _cachedGeminiModel!;
+    }
+
+    final versions = ['v1beta', 'v1'];
+    for (final v in versions) {
+      try {
+        final url = Uri.parse('https://generativelanguage.googleapis.com/$v/models?key=$key');
+        final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(utf8.decode(response.bodyBytes));
+          final rawModels = (data['models'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+
+          final candidates = rawModels.where((m) {
+            final methods = m['supportedGenerationMethods'] as List?;
+            return methods != null && methods.contains('generateContent');
+          }).map((m) => (m['name'] as String? ?? '')).where((n) => n.isNotEmpty).toList();
+
+          if (candidates.isNotEmpty) {
+            final chosen = candidates.firstWhere(
+              (name) => name.contains('gemini-2.0-flash'),
+              orElse: () => candidates.firstWhere(
+                (name) => name.contains('gemini-1.5-flash') && !name.contains('8b'),
+                orElse: () => candidates.firstWhere(
+                  (name) => name.contains('gemini-1.5-flash-8b'),
+                  orElse: () => candidates.firstWhere(
+                    (name) => name.contains('gemini-1.5-pro'),
+                    orElse: () => candidates.first,
+                  ),
+                ),
+              ),
+            );
+
+            final clean = chosen.startsWith('models/') ? chosen.replaceFirst('models/', '') : chosen;
+            _cachedGeminiModel = clean;
+            return clean;
+          }
+        } else if (response.statusCode == 400 || response.statusCode == 403) {
+          final errBody = jsonDecode(utf8.decode(response.bodyBytes));
+          final errMsg = errBody['error']?['message'] ?? 'API 키 인증 실패';
+          throw Exception(errMsg);
+        }
+      } catch (e) {
+        if (kIsWeb) rethrow;
+        if (e is Exception && e.toString().contains('API_KEY')) rethrow;
+      }
+    }
+
+    return 'gemini-1.5-flash';
+  }
 
   Future<http.Response> _sendGeminiRequest({
     required String key,
     required Map<String, dynamic> body,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    http.Response? lastResponse;
-    for (final baseEndpoint in _geminiCandidateUrls) {
-      final url = Uri.parse('$baseEndpoint?key=$key');
+    final model = await _resolveGeminiModel(key);
+
+    for (final v in ['v1beta', 'v1']) {
       try {
+        final url = Uri.parse('https://generativelanguage.googleapis.com/$v/models/$model:generateContent?key=$key');
         final response = await http.post(
           url,
           headers: {'Content-Type': 'application/json'},
@@ -347,31 +378,27 @@ class AiChatService {
           return response;
         }
 
-        lastResponse = response;
-
-        // API 키 오류인 경우 추가 엔드포인트 탐색 불필요
         if (response.statusCode == 400 || response.statusCode == 403) {
-          try {
-            final err = jsonDecode(utf8.decode(response.bodyBytes));
-            final msg = (err['error']?['message'] ?? '').toString().toLowerCase();
-            if (msg.contains('api_key_invalid') ||
-                msg.contains('api key not valid') ||
-                msg.contains('permission_denied')) {
-              return response;
-            }
-          } catch (_) {}
+          return response;
         }
 
-        // 404 모델 버전 미지원인 경우 다음 후보 엔드포인트 시도
         if (response.statusCode == 404) {
           continue;
         }
+
+        return response;
       } catch (e) {
         if (kIsWeb) rethrow;
-        continue;
       }
     }
-    return lastResponse ?? (throw Exception('모든 Gemini 엔드포인트 응답 실패'));
+
+    // 최후 백업 요청
+    final fallbackUrl = Uri.parse('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$key');
+    return await http.post(
+      fallbackUrl,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    ).timeout(timeout);
   }
 
   Future<String> _generateGemini({
