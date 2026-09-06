@@ -522,6 +522,10 @@ class NotificationService {
     await SoundService.instance.stopAlarm();
   }
 
+  Future<NotificationAppLaunchDetails?> getLaunchDetails() async {
+    return await _notificationsPlugin.getNotificationAppLaunchDetails();
+  }
+
   Future<void> cancelAll() async {
     await _notificationsPlugin.cancelAll();
   }

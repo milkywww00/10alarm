@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, CharacterProfile> _charactersMap = {};
   bool _isLoading = true;
   bool _isBatteryIgnored = true;
+  bool _isOverlayGranted = true;
 
   @override
   void initState() {
@@ -39,8 +40,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _initApp() async {
     await PermissionService.instance.requestEssentialPermissions();
     _isBatteryIgnored = await PermissionService.instance.isBatteryOptimizationIgnored();
+    _isOverlayGranted = await PermissionService.instance.isSystemAlertWindowGranted();
     NotificationService.instance.onNotificationTap = _handleNotificationTap;
     await _loadData();
+
+    // 앱이 종료되어 있던 상태에서 전체화면 알람이나 푸시로 실행되었는지 확인
+    final launchDetails = await NotificationService.instance.getLaunchDetails();
+    if (launchDetails != null && launchDetails.didNotificationLaunchApp) {
+      final payload = launchDetails.notificationResponse?.payload;
+      if (payload != null) {
+        _handleNotificationTap(payload);
+      }
+    }
   }
 
   Future<void> _loadData() async {
@@ -356,8 +367,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return RefreshIndicator(
       onRefresh: () async {
-        final status = await PermissionService.instance.isBatteryOptimizationIgnored();
-        if (mounted) setState(() => _isBatteryIgnored = status);
+        final bStatus = await PermissionService.instance.isBatteryOptimizationIgnored();
+        final oStatus = await PermissionService.instance.isSystemAlertWindowGranted();
+        if (mounted) {
+          setState(() {
+            _isBatteryIgnored = bStatus;
+            _isOverlayGranted = oStatus;
+          });
+        }
         await _loadData();
       },
       child: ListView(
@@ -393,6 +410,40 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                     ),
                     child: const Text('설정하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          if (!_isOverlayGranted)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.layers_rounded, color: Colors.blue.shade800, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '앱이 꺼져있을 때 화면에 알람을 바로 띄우려면\n\'다른 앱 위에 표시\' 권한을 켜주세요.',
+                      style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.3),
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      await PermissionService.instance.requestSystemAlertWindow();
+                      final status = await PermissionService.instance.isSystemAlertWindowGranted();
+                      if (mounted) setState(() => _isOverlayGranted = status);
+                    },
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: const Text('허용하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
