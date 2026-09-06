@@ -88,13 +88,9 @@ class AiChatService {
 
     try {
       if (provider == 'gemini') {
-        final url = Uri.parse(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key',
-        );
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({
+        final response = await _sendGeminiRequest(
+          key: key,
+          body: {
             'contents': [
               {
                 'parts': [
@@ -105,8 +101,9 @@ class AiChatService {
             'generationConfig': {
               'maxOutputTokens': 10,
             }
-          }),
-        ).timeout(const Duration(seconds: 10));
+          },
+          timeout: const Duration(seconds: 10),
+        );
 
         if (response.statusCode == 200) {
           return {'success': true, 'message': 'Google Gemini API 연결 성공!'};
@@ -323,16 +320,66 @@ class AiChatService {
     }
   }
 
+  static const List<String> _geminiCandidateUrls = [
+    'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent',
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent',
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+    'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent',
+    'https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent',
+  ];
+
+  Future<http.Response> _sendGeminiRequest({
+    required String key,
+    required Map<String, dynamic> body,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    http.Response? lastResponse;
+    for (final baseEndpoint in _geminiCandidateUrls) {
+      final url = Uri.parse('$baseEndpoint?key=$key');
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(body),
+        ).timeout(timeout);
+
+        if (response.statusCode == 200) {
+          return response;
+        }
+
+        lastResponse = response;
+
+        // API 키 오류인 경우 추가 엔드포인트 탐색 불필요
+        if (response.statusCode == 400 || response.statusCode == 403) {
+          try {
+            final err = jsonDecode(utf8.decode(response.bodyBytes));
+            final msg = (err['error']?['message'] ?? '').toString().toLowerCase();
+            if (msg.contains('api_key_invalid') ||
+                msg.contains('api key not valid') ||
+                msg.contains('permission_denied')) {
+              return response;
+            }
+          } catch (_) {}
+        }
+
+        // 404 모델 버전 미지원인 경우 다음 후보 엔드포인트 시도
+        if (response.statusCode == 404) {
+          continue;
+        }
+      } catch (e) {
+        if (kIsWeb) rethrow;
+        continue;
+      }
+    }
+    return lastResponse ?? (throw Exception('모든 Gemini 엔드포인트 응답 실패'));
+  }
+
   Future<String> _generateGemini({
     required String key,
     required String systemPrompt,
     required List<ChatMessage> history,
     required String userMessage,
   }) async {
-    final url = Uri.parse(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key',
-    );
-
     // 최근 대화 N개 가져오기
     final recentHistory = history.length > 8 ? history.sublist(history.length - 8) : history;
 
@@ -370,11 +417,11 @@ class AiChatService {
       }
     };
 
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 15));
+    final response = await _sendGeminiRequest(
+      key: key,
+      body: body,
+      timeout: const Duration(seconds: 15),
+    );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -563,13 +610,9 @@ ${detail != null ? "- 상세 내용: $detail" : ""}
 ''';
 
     if (providerNotifier.value == 'gemini') {
-      final url = Uri.parse(
-        'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$key',
-      );
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
+      final response = await _sendGeminiRequest(
+        key: key,
+        body: {
           'contents': [
             {
               'parts': [
@@ -581,8 +624,9 @@ ${detail != null ? "- 상세 내용: $detail" : ""}
             'temperature': 0.85,
             'maxOutputTokens': 100,
           }
-        }),
-      ).timeout(const Duration(seconds: 10));
+        },
+        timeout: const Duration(seconds: 10),
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
