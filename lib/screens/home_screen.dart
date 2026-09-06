@@ -474,7 +474,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               physics: const AlwaysScrollableScrollPhysics(),
               child: ConstrainedBox(
                 constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: IntrinsicHeight(
+                child: SizedBox(
+                  height: constraints.maxHeight,
                   child: Column(
                     children: [
                       if (hasBanners) banners,

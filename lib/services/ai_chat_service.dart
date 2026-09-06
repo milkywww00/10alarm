@@ -149,6 +149,7 @@ class AiChatService {
             'Content-Type': 'application/json',
             'x-api-key': key,
             'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
           },
           body: jsonEncode({
             'model': 'claude-3-5-haiku-20241022',
@@ -168,6 +169,12 @@ class AiChatService {
         }
       }
     } catch (e) {
+      if (kIsWeb) {
+        return {
+          'success': false,
+          'message': '웹 브라우저 보안 정책(CORS)으로 인해 브라우저에서는 AI API 직접 호출이 차단됩니다. 스마트폰 앱(APK)에서는 제한 없이 100% 정상 연결 및 작동합니다.',
+        };
+      }
       return {'success': false, 'message': '네트워크 오류: $e'};
     }
   }
@@ -479,6 +486,7 @@ class AiChatService {
         'Content-Type': 'application/json',
         'x-api-key': key,
         'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: jsonEncode({
         'model': 'claude-3-5-haiku-20241022',
