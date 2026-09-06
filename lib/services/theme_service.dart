@@ -14,7 +14,7 @@ class ThemeService {
 
   final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
   final ValueNotifier<Color> themeColorNotifier = ValueNotifier<Color>(const Color(0xFF6750A4));
-  final ValueNotifier<String> alarmSoundNotifier = ValueNotifier<String>('마림바 (경쾌한 멜로디)');
+  final ValueNotifier<String> alarmSoundNotifier = ValueNotifier<String>('마림바');
   final ValueNotifier<bool> vibrateNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<List<Map<String, String>>> customSoundsNotifier = ValueNotifier<List<Map<String, String>>>([]);
 
@@ -32,11 +32,11 @@ class ThemeService {
 
   // 저작권 프리(CC0 / Public Domain) 고음질 음원 프리셋
   static const List<String> alarmSounds = [
-    '마림바 (경쾌한 멜로디)',
-    '자명종 (클래식 트윈벨)',
-    '새소리 (상쾌한 아침)',
-    '피아노 (포근한 선율)',
-    '디지털 알람 (전자식 비프)',
+    '마림바',
+    '자명종',
+    '새소리',
+    '피아노',
+    '디지털 알람',
     '클래식 벨',
     '심플 비프',
   ];
@@ -68,17 +68,17 @@ class ThemeService {
 
     final sound = prefs.getString(_keyAlarmSound);
     if (sound != null) {
-      // 기존 명칭 마이그레이션 호환
-      if (sound == '기본 알람 벨' || sound == '모닝 차임 (기본)' || sound == '기본 알람' || sound == '실로폰') {
-        alarmSoundNotifier.value = '마림바 (경쾌한 멜로디)';
-      } else if (sound == '자명종') {
-        alarmSoundNotifier.value = '자명종 (클래식 트윈벨)';
-      } else if (sound == '새소리') {
-        alarmSoundNotifier.value = '새소리 (상쾌한 아침)';
-      } else if (sound == '피아노') {
-        alarmSoundNotifier.value = '피아노 (포근한 선율)';
-      } else if (sound == '비프음' || sound == '전자음') {
-        alarmSoundNotifier.value = '디지털 알람 (전자식 비프)';
+      // 기존 명칭 및 괄호 명칭 마이그레이션 호환
+      if (sound == '기본 알람 벨' || sound == '모닝 차임 (기본)' || sound == '기본 알람' || sound == '실로폰' || sound == '마림바 (경쾌한 멜로디)') {
+        alarmSoundNotifier.value = '마림바';
+      } else if (sound == '자명종' || sound == '자명종 (클래식 트윈벨)') {
+        alarmSoundNotifier.value = '자명종';
+      } else if (sound == '새소리' || sound == '새소리 (상쾌한 아침)') {
+        alarmSoundNotifier.value = '새소리';
+      } else if (sound == '피아노' || sound == '피아노 (포근한 선율)') {
+        alarmSoundNotifier.value = '피아노';
+      } else if (sound == '비프음' || sound == '전자음' || sound == '디지털 알람 (전자식 비프)') {
+        alarmSoundNotifier.value = '디지털 알람';
       } else {
         alarmSoundNotifier.value = sound;
       }
@@ -136,7 +136,7 @@ class ThemeService {
 
     // 현재 선택된 사운드가 삭제된 것이라면 기본음으로 복구
     if (alarmSoundNotifier.value == name) {
-      await setAlarmSound('기본 알람');
+      await setAlarmSound('마림바');
     }
   }
 
