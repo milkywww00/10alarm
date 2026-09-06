@@ -23,24 +23,53 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _currentTabIndex = 0;
   List<AlarmItem> _alarms = [];
   Map<String, CharacterProfile> _charactersMap = {};
   bool _isLoading = true;
   bool _isBatteryIgnored = true;
-  bool _isOverlayGranted = true;
+  bool _isOverlayGranted = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkPermissions();
     _initApp();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
+  }
+
+  Future<void> _checkPermissions() async {
+    try {
+      final bStatus = await PermissionService.instance.isBatteryOptimizationIgnored();
+      final oStatus = await PermissionService.instance.isSystemAlertWindowGranted();
+      if (mounted) {
+        setState(() {
+          _isBatteryIgnored = bStatus;
+          _isOverlayGranted = oStatus;
+        });
+      }
+    } catch (e) {
+      debugPrint('권한 상태 확인 오류: $e');
+    }
   }
 
   Future<void> _initApp() async {
     await PermissionService.instance.requestEssentialPermissions();
-    _isBatteryIgnored = await PermissionService.instance.isBatteryOptimizationIgnored();
-    _isOverlayGranted = await PermissionService.instance.isSystemAlertWindowGranted();
+    await _checkPermissions();
     NotificationService.instance.onNotificationTap = _handleNotificationTap;
     await _loadData();
 
@@ -352,102 +381,118 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildPermissionBanners() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!_isBatteryIgnored)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.battery_alert_rounded, color: Colors.amber.shade800, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '앱이 꺼져 있어도 알람이 100% 울리려면\n\'배터리 제한 없음\' 설정이 필요해요.',
+                    style: TextStyle(fontSize: 12, color: Colors.amber.shade900, height: 1.3),
+                  ),
+                ),
+                FilledButton.tonal(
+                  onPressed: () async {
+                    await PermissionService.instance.requestIgnoreBatteryOptimization();
+                    await _checkPermissions();
+                  },
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: const Text('설정하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        if (!_isOverlayGranted)
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.blue.shade300, width: 1.5),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.layers_rounded, color: Colors.blue.shade800, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '앱이 꺼져있을 때 화면에 알람을 바로 띄우려면\n\'다른 앱 위에 표시\' 권한을 켜주세요.',
+                    style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.3, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    await PermissionService.instance.requestSystemAlertWindow();
+                    await _checkPermissions();
+                  },
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    backgroundColor: Colors.blue.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: const Text('허용하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _buildAlarmTab() {
+    final banners = _buildPermissionBanners();
+
     if (_alarms.isEmpty) {
-      return EmptyStateView(
-        icon: Icons.alarm_rounded,
-        title: '등록된 알람이 없습니다',
-        description: '내가 좋아하는 캐릭터를 등록하고,\n아침마다 설레는 모닝콜 메시지를 받아보세요.',
-        buttonText: '첫 알람 만들기',
-        onButtonPressed: _navigateToAddAlarm,
+      return RefreshIndicator(
+        onRefresh: () async {
+          await _checkPermissions();
+          await _loadData();
+        },
+        child: ListView(
+          padding: const EdgeInsets.only(top: 8, bottom: 80),
+          children: [
+            banners,
+            SizedBox(
+              height: 400,
+              child: EmptyStateView(
+                icon: Icons.alarm_rounded,
+                title: '등록된 알람이 없습니다',
+                description: '내가 좋아하는 캐릭터를 등록하고,\n아침마다 설레는 모닝콜 메시지를 받아보세요.',
+                buttonText: '첫 알람 만들기',
+                onButtonPressed: _navigateToAddAlarm,
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    final theme = Theme.of(context);
-
     return RefreshIndicator(
       onRefresh: () async {
-        final bStatus = await PermissionService.instance.isBatteryOptimizationIgnored();
-        final oStatus = await PermissionService.instance.isSystemAlertWindowGranted();
-        if (mounted) {
-          setState(() {
-            _isBatteryIgnored = bStatus;
-            _isOverlayGranted = oStatus;
-          });
-        }
+        await _checkPermissions();
         await _loadData();
       },
       child: ListView(
         padding: const EdgeInsets.only(top: 8, bottom: 80),
         children: [
-          if (!_isBatteryIgnored)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.battery_alert_rounded, color: Colors.amber.shade800, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '앱이 꺼져 있어도 알람이 100% 울리려면\n\'배터리 제한 없음\' 설정이 필요해요.',
-                      style: TextStyle(fontSize: 12, color: Colors.amber.shade900, height: 1.3),
-                    ),
-                  ),
-                  FilledButton.tonal(
-                    onPressed: () async {
-                      await PermissionService.instance.requestIgnoreBatteryOptimization();
-                      final status = await PermissionService.instance.isBatteryOptimizationIgnored();
-                      if (mounted) setState(() => _isBatteryIgnored = status);
-                    },
-                    style: FilledButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: const Text('설정하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
-          if (!_isOverlayGranted)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.shade50,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.blue.shade200),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.layers_rounded, color: Colors.blue.shade800, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '앱이 꺼져있을 때 화면에 알람을 바로 띄우려면\n\'다른 앱 위에 표시\' 권한을 켜주세요.',
-                      style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.3),
-                    ),
-                  ),
-                  FilledButton.tonal(
-                    onPressed: () async {
-                      await PermissionService.instance.requestSystemAlertWindow();
-                      final status = await PermissionService.instance.isSystemAlertWindowGranted();
-                      if (mounted) setState(() => _isOverlayGranted = status);
-                    },
-                    style: FilledButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                    ),
-                    child: const Text('허용하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-            ),
+          banners,
           ..._alarms.map((alarm) {
             final character = _charactersMap[alarm.characterId];
             return AlarmCard(

@@ -13,6 +13,7 @@ class SoundService {
   final AudioPlayer _alarmPlayer = AudioPlayer();
   final ValueNotifier<String?> playingSoundNotifier = ValueNotifier<String?>(null);
   final ValueNotifier<bool> isAlarmRingingNotifier = ValueNotifier<bool>(false);
+  final Map<String, Uint8List> _soundBytesCache = {};
 
   Future<void> init() async {
     _player.onPlayerComplete.listen((_) {
@@ -91,8 +92,7 @@ class SoundService {
       final assetPath = _presetSoundAssets[selectedSound];
       if (assetPath != null) {
         try {
-          final data = await rootBundle.load('assets/$assetPath');
-          final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          final bytes = await _loadAssetBytes(assetPath);
           await _alarmPlayer.play(BytesSource(bytes));
           return;
         } catch (_) {
@@ -102,7 +102,7 @@ class SoundService {
       }
 
       // 3. 폴백: 신디사이저 PCM 파형
-      final wavBytes = _generatePresetWav(selectedSound);
+      final wavBytes = _getCachedOrGeneratedWav(selectedSound);
       await _alarmPlayer.play(BytesSource(wavBytes));
     } catch (e) {
       debugPrint('알람 사운드 재생 실패: $e');
@@ -143,8 +143,7 @@ class SoundService {
       final assetPath = _presetSoundAssets[soundName];
       if (assetPath != null) {
         try {
-          final data = await rootBundle.load('assets/$assetPath');
-          final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          final bytes = await _loadAssetBytes(assetPath);
           await _player.play(BytesSource(bytes));
           return;
         } catch (_) {
@@ -154,12 +153,30 @@ class SoundService {
       }
 
       // 3. 프리셋 알림음 합성 사운드 생성 및 재생 (폴백)
-      final wavBytes = _generatePresetWav(soundName);
+      final wavBytes = _getCachedOrGeneratedWav(soundName);
       await _player.play(BytesSource(wavBytes));
     } catch (e) {
       debugPrint('사운드 재생 오류: $e');
       playingSoundNotifier.value = null;
     }
+  }
+
+  Future<Uint8List> _loadAssetBytes(String assetPath) async {
+    final cached = _soundBytesCache[assetPath];
+    if (cached != null) return cached;
+    final data = await rootBundle.load('assets/$assetPath');
+    final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+    _soundBytesCache[assetPath] = bytes;
+    return bytes;
+  }
+
+  Uint8List _getCachedOrGeneratedWav(String name) {
+    final key = 'synth:$name';
+    final cached = _soundBytesCache[key];
+    if (cached != null) return cached;
+    final bytes = _generatePresetWav(name);
+    _soundBytesCache[key] = bytes;
+    return bytes;
   }
 
   Future<void> stop() async {

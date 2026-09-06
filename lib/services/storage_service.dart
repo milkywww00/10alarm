@@ -22,13 +22,22 @@ class StorageService {
   static final StorageService instance = StorageService._();
   StorageService._();
 
+  // In-memory caches for high-speed O(1) reads and zero unnecessary disk I/O
+  List<CharacterProfile>? _cachedCharacters;
+  List<AlarmItem>? _cachedAlarms;
+  List<ScheduleItem>? _cachedSchedules;
+
   // ----- Character Profiles -----
 
   Future<List<CharacterProfile>> getCharacters() async {
+    if (_cachedCharacters != null) {
+      return List.from(_cachedCharacters!);
+    }
     try {
       final prefs = await SharedPreferences.getInstance();
       final listJson = prefs.getStringList(_keyCharacters);
       if (listJson == null || listJson.isEmpty) {
+        _cachedCharacters = [];
         return [];
       }
       final List<CharacterProfile> list = [];
@@ -37,14 +46,15 @@ class StorageService {
           list.add(CharacterProfile.fromJson(item));
         } catch (_) {}
       }
-      return list;
+      _cachedCharacters = list;
+      return List.from(list);
     } catch (_) {
+      _cachedCharacters = [];
       return [];
     }
   }
 
   Future<void> saveCharacter(CharacterProfile character) async {
-    final prefs = await SharedPreferences.getInstance();
     final characters = await getCharacters();
     final index = characters.indexWhere((c) => c.id == character.id);
     if (index >= 0) {
@@ -52,23 +62,29 @@ class StorageService {
     } else {
       characters.add(character);
     }
+    _cachedCharacters = characters;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = characters.map((c) => c.toJson()).toList();
     await prefs.setStringList(_keyCharacters, listJson);
   }
 
   Future<void> deleteCharacter(String characterId) async {
-    final prefs = await SharedPreferences.getInstance();
     final characters = await getCharacters();
     characters.removeWhere((c) => c.id == characterId);
+    _cachedCharacters = characters;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = characters.map((c) => c.toJson()).toList();
     await prefs.setStringList(_keyCharacters, listJson);
 
     // 연관된 알람도 함께 정리
     final alarms = await getAlarms();
-    final updatedAlarms = alarms.where((a) => a.characterId != characterId).toList();
+    alarms.removeWhere((a) => a.characterId != characterId);
+    _cachedAlarms = alarms;
     await prefs.setStringList(
       _keyAlarms,
-      updatedAlarms.map((a) => a.toJson()).toList(),
+      alarms.map((a) => a.toJson()).toList(),
     );
   }
 
@@ -84,16 +100,21 @@ class StorageService {
   // ----- Alarms -----
 
   Future<List<AlarmItem>> getAlarms() async {
+    if (_cachedAlarms != null) {
+      return List.from(_cachedAlarms!);
+    }
     final prefs = await SharedPreferences.getInstance();
     final listJson = prefs.getStringList(_keyAlarms);
     if (listJson == null || listJson.isEmpty) {
+      _cachedAlarms = [];
       return [];
     }
-    return listJson.map((item) => AlarmItem.fromJson(item)).toList();
+    final alarms = listJson.map((item) => AlarmItem.fromJson(item)).toList();
+    _cachedAlarms = alarms;
+    return List.from(alarms);
   }
 
   Future<void> saveAlarm(AlarmItem alarm) async {
-    final prefs = await SharedPreferences.getInstance();
     final alarms = await getAlarms();
     final index = alarms.indexWhere((a) => a.id == alarm.id);
     if (index >= 0) {
@@ -101,14 +122,19 @@ class StorageService {
     } else {
       alarms.add(alarm);
     }
+    _cachedAlarms = alarms;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = alarms.map((a) => a.toJson()).toList();
     await prefs.setStringList(_keyAlarms, listJson);
   }
 
   Future<void> deleteAlarm(String alarmId) async {
-    final prefs = await SharedPreferences.getInstance();
     final alarms = await getAlarms();
     alarms.removeWhere((a) => a.id == alarmId);
+    _cachedAlarms = alarms;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = alarms.map((a) => a.toJson()).toList();
     await prefs.setStringList(_keyAlarms, listJson);
   }
@@ -156,16 +182,21 @@ class StorageService {
   // ----- Calendar Schedules -----
 
   Future<List<ScheduleItem>> getSchedules() async {
+    if (_cachedSchedules != null) {
+      return List.from(_cachedSchedules!);
+    }
     final prefs = await SharedPreferences.getInstance();
     final listJson = prefs.getStringList(_keySchedules);
     if (listJson == null || listJson.isEmpty) {
+      _cachedSchedules = [];
       return [];
     }
-    return listJson.map((item) => ScheduleItem.fromJson(item)).toList();
+    final schedules = listJson.map((item) => ScheduleItem.fromJson(item)).toList();
+    _cachedSchedules = schedules;
+    return List.from(schedules);
   }
 
   Future<void> saveSchedule(ScheduleItem schedule) async {
-    final prefs = await SharedPreferences.getInstance();
     final schedules = await getSchedules();
     final index = schedules.indexWhere((s) => s.id == schedule.id);
     if (index >= 0) {
@@ -173,14 +204,19 @@ class StorageService {
     } else {
       schedules.add(schedule);
     }
+    _cachedSchedules = schedules;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = schedules.map((s) => s.toJson()).toList();
     await prefs.setStringList(_keySchedules, listJson);
   }
 
   Future<void> deleteSchedule(String scheduleId) async {
-    final prefs = await SharedPreferences.getInstance();
     final schedules = await getSchedules();
     schedules.removeWhere((s) => s.id == scheduleId);
+    _cachedSchedules = schedules;
+
+    final prefs = await SharedPreferences.getInstance();
     final listJson = schedules.map((s) => s.toJson()).toList();
     await prefs.setStringList(_keySchedules, listJson);
   }
@@ -191,6 +227,8 @@ class StorageService {
     if (index >= 0) {
       final current = schedules[index];
       schedules[index] = current.copyWith(isCompleted: !current.isCompleted);
+      _cachedSchedules = schedules;
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(
         _keySchedules,

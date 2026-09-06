@@ -1,9 +1,12 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/theme_service.dart';
 import '../services/sound_service.dart';
 import '../services/ai_chat_service.dart';
+import '../services/permission_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -12,7 +15,7 @@ class SettingsScreen extends StatefulWidget {
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObserver {
   late ThemeMode _currentThemeMode;
   late Color _currentColor;
   late String _currentSound;
@@ -27,9 +30,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isTestingConnection = false;
   Map<String, dynamic>? _testResult;
 
+  bool _isBatteryIgnored = true;
+  bool _isOverlayGranted = true;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checkPermissions();
+
     _currentThemeMode = ThemeService.instance.themeModeNotifier.value;
     _currentColor = ThemeService.instance.themeColorNotifier.value;
     _currentSound = ThemeService.instance.alarmSoundNotifier.value;
@@ -44,11 +53,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _geminiKeyController.dispose();
     _openaiKeyController.dispose();
     _claudeKeyController.dispose();
     SoundService.instance.stop();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkPermissions();
+    }
+  }
+
+  Future<void> _checkPermissions() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      final bStatus = await PermissionService.instance.isBatteryOptimizationIgnored();
+      final oStatus = await PermissionService.instance.isSystemAlertWindowGranted();
+      if (mounted) {
+        setState(() {
+          _isBatteryIgnored = bStatus;
+          _isOverlayGranted = oStatus;
+        });
+      }
+    } catch (e) {
+      debugPrint('권한 확인 오류: $e');
+    }
   }
 
   void _onThemeModeChanged(Set<ThemeMode> selection) {
@@ -480,7 +513,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildAiSettingsSection(theme),
           const SizedBox(height: 24),
 
-          // 섹션 4: 앱 정보 및 데이터 관리
+          // 섹션 4: 알람 정상 작동 권한 설정
+          _buildPermissionSection(theme),
+
+          // 섹션 5: 앱 정보 및 데이터 관리
           _buildSectionHeader('앱 관리'),
           Card(
             elevation: 0,
@@ -494,7 +530,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.info_outline_rounded),
                   title: const Text('앱 버전'),
                   trailing: Text(
-                    'v1.0.0 (Release)',
+                    'v1.0.0',
                     style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600),
                   ),
                 ),
@@ -510,6 +546,96 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPermissionSection(ThemeData theme) {
+    if (kIsWeb) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('알람 권한 및 백그라운드 설정'),
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: [
+              ListTile(
+                leading: Icon(
+                  Icons.layers_rounded,
+                  color: _isOverlayGranted ? Colors.green : Colors.blue.shade700,
+                ),
+                title: const Text('다른 앱 위에 표시'),
+                subtitle: Text(
+                  _isOverlayGranted
+                      ? '허용됨 (화면 꺼짐 시 알람 화면 바로 뜸)'
+                      : '미허용 (앱 꺼져있을 때 화면 팝업을 위해 권한 필요)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOverlayGranted ? Colors.green.shade700 : Colors.blue.shade900,
+                  ),
+                ),
+                trailing: _isOverlayGranted
+                    ? const Icon(Icons.check_circle_rounded, color: Colors.green)
+                    : FilledButton.tonal(
+                        onPressed: () async {
+                          await PermissionService.instance.requestSystemAlertWindow();
+                          await _checkPermissions();
+                        },
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: const Text('권한 설정', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Icon(
+                  Icons.battery_saver_rounded,
+                  color: _isBatteryIgnored ? Colors.green : Colors.amber.shade800,
+                ),
+                title: const Text('배터리 최적화 제외 (제한 없음)'),
+                subtitle: Text(
+                  _isBatteryIgnored
+                      ? '설정 완료 (기기 절전 모드 시 알람 누락 방지)'
+                      : '미설정 (절전 모드에서 알람이 지연될 수 있음)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isBatteryIgnored ? Colors.green.shade700 : Colors.amber.shade900,
+                  ),
+                ),
+                trailing: _isBatteryIgnored
+                    ? const Icon(Icons.check_circle_rounded, color: Colors.green)
+                    : FilledButton.tonal(
+                        onPressed: () async {
+                          await PermissionService.instance.requestIgnoreBatteryOptimization();
+                          await _checkPermissions();
+                        },
+                        style: FilledButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                        ),
+                        child: const Text('설정하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const Icon(Icons.settings_applications_rounded),
+                title: const Text('기기 시스템 앱 설정 열기'),
+                subtitle: const Text('알림 권한, 정확한 알람 등 기기 설정 직접 이동', style: TextStyle(fontSize: 12)),
+                trailing: const Icon(Icons.open_in_new_rounded, size: 20),
+                onTap: () => PermissionService.instance.openSettings(),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 

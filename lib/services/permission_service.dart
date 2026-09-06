@@ -50,13 +50,34 @@ class PermissionService {
   /// Android 10+ 및 삼성 기기에서 앱이 종료되어 있어도 알람 화면을 최상단에 띄우기 위해 필수
   Future<bool> isSystemAlertWindowGranted() async {
     if (kIsWeb || !Platform.isAndroid) return true;
-    return await Permission.systemAlertWindow.isGranted;
+    try {
+      final status = await Permission.systemAlertWindow.status;
+      return status.isGranted;
+    } catch (e) {
+      debugPrint('isSystemAlertWindowGranted error: $e');
+      return false;
+    }
   }
 
   /// 다른 앱 위에 표시 권한 설정 요청
   Future<bool> requestSystemAlertWindow() async {
     if (kIsWeb || !Platform.isAndroid) return true;
-    final status = await Permission.systemAlertWindow.request();
-    return status.isGranted;
+    try {
+      final status = await Permission.systemAlertWindow.request();
+      if (!status.isGranted) {
+        // 일부 기기(삼성/샤오미 등)에서 request()가 설정창을 열지 않는 경우 대비 openAppSettings fallback
+        await openAppSettings();
+      }
+      return await isSystemAlertWindowGranted();
+    } catch (e) {
+      debugPrint('requestSystemAlertWindow error: $e');
+      await openAppSettings();
+      return false;
+    }
+  }
+
+  /// 기기 앱 설정 화면 열기
+  Future<bool> openSettings() async {
+    return await openAppSettings();
   }
 }
