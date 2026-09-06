@@ -1,6 +1,6 @@
-import 'dart:math' as math;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import 'theme_service.dart';
 
@@ -89,8 +89,15 @@ class SoundService {
       // 2. 실제 저작권 프리 고음질 음원 에셋 재생
       final assetPath = _presetSoundAssets[selectedSound];
       if (assetPath != null) {
-        await _alarmPlayer.play(AssetSource(assetPath));
-        return;
+        try {
+          final data = await rootBundle.load('assets/$assetPath');
+          final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          await _alarmPlayer.play(BytesSource(bytes));
+          return;
+        } catch (_) {
+          await _alarmPlayer.play(AssetSource(assetPath));
+          return;
+        }
       }
 
       // 3. 폴백: 신디사이저 PCM 파형
@@ -134,8 +141,15 @@ class SoundService {
       // 2. 실제 저작권 프리 고음질 음원 에셋 재생
       final assetPath = _presetSoundAssets[soundName];
       if (assetPath != null) {
-        await _player.play(AssetSource(assetPath));
-        return;
+        try {
+          final data = await rootBundle.load('assets/$assetPath');
+          final bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+          await _player.play(BytesSource(bytes));
+          return;
+        } catch (_) {
+          await _player.play(AssetSource(assetPath));
+          return;
+        }
       }
 
       // 3. 프리셋 알림음 합성 사운드 생성 및 재생 (폴백)
