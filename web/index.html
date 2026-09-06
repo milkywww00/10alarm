@@ -37,14 +37,18 @@
   <title>10Alarm</title>
   <link rel="manifest" href="manifest.json">
 </head>
-<body>
   <script>
-    // 이전 버전의 서비스 워커 캐시 강제 무효화
+    // 서비스 워커 완전 등록 해제 및 캐시 강제 청소
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for (var registration of registrations) {
-          registration.update();
+        for (var r of registrations) {
+          r.unregister();
         }
+      });
+    }
+    if ('caches' in window) {
+      caches.keys().then(function(names) {
+        for (var name of names) caches.delete(name);
       });
     }
   </script>
