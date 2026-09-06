@@ -104,11 +104,17 @@ class _ChatSimulationScreenState extends State<ChatSimulationScreen> with Single
       _scrollToBottom();
 
       try {
+        final effectiveContext = widget.initialMessage != null && widget.initialMessage!.isNotEmpty
+            ? '최근 수신 알람 메시지: "${widget.initialMessage}"'
+            : (widget.alarm != null && widget.alarm!.message.isNotEmpty
+                ? '설정된 알람 메시지: "${widget.alarm!.message}"'
+                : null);
+
         final replyText = await AiChatService.instance.generateCharacterReply(
           character: widget.character,
           history: _messages,
           userMessage: clean,
-          contextInfo: '최근 수신 알람 메시지: ',
+          contextInfo: effectiveContext,
         );
 
         if (!mounted) return;

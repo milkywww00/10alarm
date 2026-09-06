@@ -309,11 +309,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ],
         );
         bodyWidget = _buildAlarmTab();
-        fabWidget = FloatingActionButton.extended(
-          onPressed: _navigateToAddAlarm,
-          icon: const Icon(Icons.add_alarm_rounded),
-          label: const Text('알람 추가'),
-        );
+        fabWidget = _alarms.isNotEmpty
+            ? FloatingActionButton.extended(
+                onPressed: _navigateToAddAlarm,
+                icon: const Icon(Icons.add_alarm_rounded),
+                label: const Text('알람 추가'),
+              )
+            : null;
         break;
       case 1:
         bodyWidget = const TimeManagementScreen();
@@ -458,29 +460,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildAlarmTab() {
     final banners = _buildPermissionBanners();
+    final hasBanners = !_isBatteryIgnored || !_isOverlayGranted;
 
     if (_alarms.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: () async {
-          await _checkPermissions();
-          await _loadData();
-        },
-        child: ListView(
-          padding: const EdgeInsets.only(top: 8, bottom: 80),
-          children: [
-            banners,
-            SizedBox(
-              height: 400,
-              child: EmptyStateView(
-                icon: Icons.alarm_rounded,
-                title: '등록된 알람이 없습니다',
-                description: '내가 좋아하는 캐릭터를 등록하고,\n아침마다 설레는 모닝콜 메시지를 받아보세요.',
-                buttonText: '첫 알람 만들기',
-                onButtonPressed: _navigateToAddAlarm,
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          return RefreshIndicator(
+            onRefresh: () async {
+              await _checkPermissions();
+              await _loadData();
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
+                    children: [
+                      if (hasBanners) banners,
+                      Expanded(
+                        child: EmptyStateView(
+                          icon: Icons.alarm_rounded,
+                          title: '등록된 알람이 없습니다',
+                          description: '내가 좋아하는 캐릭터를 등록하고,\n아침마다 설레는 모닝콜 메시지를 받아보세요.',
+                          buttonText: '첫 알람 만들기',
+                          onButtonPressed: _navigateToAddAlarm,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ],
-        ),
+          );
+        },
       );
     }
 
