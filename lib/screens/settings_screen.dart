@@ -23,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
   late bool _isAiEnabled;
   late String _aiProvider;
+  late String _geminiModel;
   late TextEditingController _geminiKeyController;
   late TextEditingController _openaiKeyController;
   late TextEditingController _claudeKeyController;
@@ -46,6 +47,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
     _isAiEnabled = AiChatService.instance.isAiEnabledNotifier.value;
     _aiProvider = AiChatService.instance.providerNotifier.value;
+    _geminiModel = AiChatService.instance.geminiModelNotifier.value;
     _geminiKeyController = TextEditingController(text: AiChatService.instance.geminiKeyNotifier.value);
     _openaiKeyController = TextEditingController(text: AiChatService.instance.openaiKeyNotifier.value);
     _claudeKeyController = TextEditingController(text: AiChatService.instance.claudeKeyNotifier.value);
@@ -797,6 +799,55 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                             }
                           },
                         ),
+                        if (isGemini) ...[
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String>(
+                            value: _geminiModel,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: 'Gemini 모델 선택 (상위 모델 지정)',
+                              isDense: true,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              prefixIcon: const Icon(Icons.tune_rounded, size: 20),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'auto',
+                                child: Text('자동 탐색 (구글 지원 최적 모델 권장)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gemini-1.5-pro',
+                                child: Text('Gemini 1.5 Pro (최상위 지능 - 페르소나 극대화)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gemini-2.0-flash',
+                                child: Text('Gemini 2.0 Flash (차세대 고성능 & 고속)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gemini-1.5-flash',
+                                child: Text('Gemini 1.5 Flash (표준 추천 - 빠르고 쾌적)'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'gemini-1.5-flash-8b',
+                                child: Text('Gemini 1.5 Flash-8B (초경량 초고속)'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  _geminiModel = val;
+                                  _testResult = null;
+                                });
+                                AiChatService.instance.setGeminiModel(val);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '💡 1.5 Pro 모델은 캐릭터 말투와 지능이 가장 뛰어나지만 응답에 3~5초 소요될 수 있으며, 무료 사용량(분당 2회/일 50회)이 Flash(분당 15회/일 1,500회)보다 타이트합니다.',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ],
                         const SizedBox(height: 12),
 
                         // 연결 테스트 버튼

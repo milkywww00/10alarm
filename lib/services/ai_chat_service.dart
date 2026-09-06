@@ -16,12 +16,14 @@ class AiChatService {
   static const String _keyGeminiKey = 'ai_gemini_key_v1';
   static const String _keyOpenaiKey = 'ai_openai_key_v1';
   static const String _keyClaudeKey = 'ai_claude_key_v1';
+  static const String _keyGeminiModel = 'ai_gemini_model_v1';
 
   final ValueNotifier<bool> isAiEnabledNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<String> providerNotifier = ValueNotifier<String>('gemini');
   final ValueNotifier<String> geminiKeyNotifier = ValueNotifier<String>('');
   final ValueNotifier<String> openaiKeyNotifier = ValueNotifier<String>('');
   final ValueNotifier<String> claudeKeyNotifier = ValueNotifier<String>('');
+  final ValueNotifier<String> geminiModelNotifier = ValueNotifier<String>('auto');
 
   String get currentApiKey {
     if (providerNotifier.value == 'openai') {
@@ -41,6 +43,7 @@ class AiChatService {
     geminiKeyNotifier.value = prefs.getString(_keyGeminiKey) ?? '';
     openaiKeyNotifier.value = prefs.getString(_keyOpenaiKey) ?? '';
     claudeKeyNotifier.value = prefs.getString(_keyClaudeKey) ?? '';
+    geminiModelNotifier.value = prefs.getString(_keyGeminiModel) ?? 'auto';
   }
 
   Future<void> setAiEnabled(bool enabled) async {
@@ -53,6 +56,13 @@ class AiChatService {
     providerNotifier.value = provider;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyProvider, provider);
+  }
+
+  Future<void> setGeminiModel(String model) async {
+    geminiModelNotifier.value = model;
+    _cachedGeminiModel = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyGeminiModel, model);
   }
 
   Future<void> setGeminiKey(String key) async {
@@ -306,6 +316,13 @@ class AiChatService {
 
   /// Google AI Studio의 ListModels API를 통해 활성화된 모델 목록을 동적으로 탐색합니다.
   Future<String> _resolveGeminiModel(String key) async {
+    final userSelected = geminiModelNotifier.value;
+    if (userSelected != 'auto' && userSelected.isNotEmpty) {
+      final clean = userSelected.startsWith('models/') ? userSelected.replaceFirst('models/', '') : userSelected;
+      _cachedGeminiModel = clean;
+      return clean;
+    }
+
     if (_cachedGeminiModel != null && _cachedGeminiModel!.isNotEmpty) {
       return _cachedGeminiModel!;
     }
