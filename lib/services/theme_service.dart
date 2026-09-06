@@ -14,7 +14,7 @@ class ThemeService {
 
   final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
   final ValueNotifier<Color> themeColorNotifier = ValueNotifier<Color>(const Color(0xFF6750A4));
-  final ValueNotifier<String> alarmSoundNotifier = ValueNotifier<String>('기본 알람');
+  final ValueNotifier<String> alarmSoundNotifier = ValueNotifier<String>('마림바 (경쾌한 멜로디)');
   final ValueNotifier<bool> vibrateNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<List<Map<String, String>>> customSoundsNotifier = ValueNotifier<List<Map<String, String>>>([]);
 
@@ -30,19 +30,15 @@ class ThemeService {
     {'name': '차콜', 'color': Color(0xFF455A64)},
   ];
 
-  // 깔끔하고 직관적인 기본 알림음 프리셋
+  // 저작권 프리(CC0 / Public Domain) 고음질 음원 프리셋
   static const List<String> alarmSounds = [
-    '기본 알람',
-    '피아노',
-    '실로폰',
-    '오르골',
-    '차임벨',
-    '벨소리',
-    '하모니카',
-    '팡파르',
-    '핑퐁',
-    '자명종',
-    '비프음',
+    '마림바 (경쾌한 멜로디)',
+    '자명종 (클래식 트윈벨)',
+    '새소리 (상쾌한 아침)',
+    '피아노 (포근한 선율)',
+    '디지털 알람 (전자식 비프)',
+    '클래식 벨',
+    '심플 비프',
   ];
 
   Future<void> init() async {
@@ -73,8 +69,16 @@ class ThemeService {
     final sound = prefs.getString(_keyAlarmSound);
     if (sound != null) {
       // 기존 명칭 마이그레이션 호환
-      if (sound == '기본 알람 벨' || sound == '모닝 차임 (기본)') {
-        alarmSoundNotifier.value = '기본 알람';
+      if (sound == '기본 알람 벨' || sound == '모닝 차임 (기본)' || sound == '기본 알람' || sound == '실로폰') {
+        alarmSoundNotifier.value = '마림바 (경쾌한 멜로디)';
+      } else if (sound == '자명종') {
+        alarmSoundNotifier.value = '자명종 (클래식 트윈벨)';
+      } else if (sound == '새소리') {
+        alarmSoundNotifier.value = '새소리 (상쾌한 아침)';
+      } else if (sound == '피아노') {
+        alarmSoundNotifier.value = '피아노 (포근한 선율)';
+      } else if (sound == '비프음' || sound == '전자음') {
+        alarmSoundNotifier.value = '디지털 알람 (전자식 비프)';
       } else {
         alarmSoundNotifier.value = sound;
       }

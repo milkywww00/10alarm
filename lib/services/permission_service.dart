@@ -32,4 +32,17 @@ class PermissionService {
     if (!Platform.isAndroid) return true;
     return await Permission.scheduleExactAlarm.isGranted;
   }
+
+  /// 절전 모드(배터리 최적화) 제외 여부 확인
+  Future<bool> isBatteryOptimizationIgnored() async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    return await Permission.ignoreBatteryOptimizations.isGranted;
+  }
+
+  /// 절전 모드(배터리 최적화) 제외 요청 (앱 종료 시에도 알람 울림 보장)
+  Future<bool> requestIgnoreBatteryOptimization() async {
+    if (kIsWeb || !Platform.isAndroid) return true;
+    final status = await Permission.ignoreBatteryOptimizations.request();
+    return status.isGranted;
+  }
 }

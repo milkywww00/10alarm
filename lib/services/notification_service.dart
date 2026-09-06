@@ -8,6 +8,8 @@ import '../models/chat_message.dart';
 import '../utils/message_formatter.dart';
 import 'storage_service.dart';
 
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 import 'sound_service.dart';
 
 class NotificationService {
@@ -25,6 +27,7 @@ class NotificationService {
   void Function(String? payload)? onNotificationTap;
 
   Future<void> init() async {
+    tz.initializeTimeZones();
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const darwinSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -146,7 +149,7 @@ class NotificationService {
     // payload로 characterId와 alarmId 전달
     final payload = '${character.id}#${alarm.id}';
 
-    // 푸시 알림 메시지를 캐릭터 채팅 기록에 자동 반영
+    // 푸시 알림 메시지를 캐릭터 채팅 기록에 반영 (알람 수신 메시지 보존)
     await StorageService.instance.saveChatMessage(
       ChatMessage(
         id: const Uuid().v4(),
@@ -176,7 +179,7 @@ class NotificationService {
   }) async {
     final resolvedMessage = MessageFormatter.format(message, character: character);
 
-    // 푸시 알림 메시지를 캐릭터 채팅 기록에 자동 반영
+    // 푸시 알림 메시지를 캐릭터 채팅 기록에 반영
     await StorageService.instance.saveChatMessage(
       ChatMessage(
         id: const Uuid().v4(),
@@ -335,6 +338,95 @@ class NotificationService {
         await Future.delayed(Duration(seconds: intervalSeconds));
       }
     }
+  }
+
+  /// OS 최상위 알람 클록 (AlarmManager.setAlarmClock) 스케줄링
+  /// 앱이 종료(Killed)되어도 안드로이드 OS가 정각에 기기를 깨워 알람을 울림
+  Future<void> scheduleAlarmClockNotification({
+    required int id,
+    required DateTime scheduledDate,
+    required CharacterProfile character,
+    required String message,
+    String? payload,
+  }) async {
+    if (kIsWeb) return;
+
+    final tzDateTime = tz.TZDateTime.from(scheduledDate, tz.local);
+    final resolvedMessage = MessageFormatter.format(message, character: character);
+
+    AndroidBitmap<Object>? avatarBitmap;
+    if (character.avatarPath != null && File(character.avatarPath!).existsSync()) {
+      avatarBitmap = FilePathAndroidBitmap(character.avatarPath!);
+    }
+
+    final characterPerson = Person(
+      name: character.name,
+      icon: avatarBitmap != null ? BitmapFilePathAndroidIcon(character.avatarPath!) : null,
+      key: character.id,
+    );
+
+    final messagingStyle = MessagingStyleInformation(
+      characterPerson,
+      conversationTitle: character.name,
+      groupConversation: false,
+      messages: [
+        Message(
+          resolvedMessage,
+          scheduledDate,
+          characterPerson,
+        ),
+      ],
+    );
+
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
+      channelDescription: channelDescription,
+      importance: Importance.max,
+      priority: Priority.high,
+      ticker: '${character.name}: $resolvedMessage',
+      styleInformation: messagingStyle,
+      largeIcon: avatarBitmap,
+      fullScreenIntent: true,
+      category: AndroidNotificationCategory.alarm,
+      visibility: NotificationVisibility.public,
+      actions: const [
+        AndroidNotificationAction(
+          'dismiss_alarm',
+          '알람 끄기',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+        AndroidNotificationAction(
+          'open_chat',
+          '답장하기',
+          showsUserInterface: true,
+          cancelNotification: true,
+        ),
+      ],
+    );
+
+    final iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+      subtitle: character.name,
+    );
+
+    final notificationDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _notificationsPlugin.zonedSchedule(
+      id: id,
+      title: character.name,
+      body: resolvedMessage,
+      scheduledDate: tzDateTime,
+      notificationDetails: notificationDetails,
+      androidScheduleMode: AndroidScheduleMode.alarmClock,
+      payload: payload,
+    );
   }
 
   Future<void> cancelAlarmNotification(int notifId) async {

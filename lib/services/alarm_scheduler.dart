@@ -217,6 +217,26 @@ class AlarmScheduler {
     final int alarmCode = alarm.id.hashCode.abs();
     final nextTime = calculateNextTriggerTime(alarm.hour, alarm.minute, alarm.repeatDays);
 
+    final character = await StorageService.instance.getCharacterById(alarm.characterId);
+    if (character != null) {
+      final effectiveMessage = (alarm.message.isNotEmpty && !alarm.message.startsWith('['))
+          ? alarm.message
+          : (character.defaultMorningMessage?.isNotEmpty == true
+              ? character.defaultMorningMessage!
+              : '좋은 아침이야, {호칭}! 오늘도 힘차게 시작해볼까?');
+
+      // 1. Android OS 최상위 알람 클록 등록 (AlarmManager.setAlarmClock)
+      // 앱이 완전히 종료(Killed)되거나 Doze 절전 모드 상태여도 OS가 100% 화면을 깨우고 알람 울림
+      await NotificationService.instance.scheduleAlarmClockNotification(
+        id: alarmCode,
+        scheduledDate: nextTime,
+        character: character,
+        message: effectiveMessage,
+        payload: '${character.id}#${alarm.id}',
+      );
+    }
+
+    // 2. 백그라운드 오디오 엔진 동시 격발
     if (!kIsWeb && Platform.isAndroid) {
       await AndroidAlarmManager.oneShotAt(
         nextTime,

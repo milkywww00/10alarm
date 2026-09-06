@@ -19,6 +19,26 @@ class SoundService {
     });
   }
 
+  static const Map<String, String> _presetSoundAssets = {
+    '마림바 (경쾌한 멜로디)': 'sounds/cheerful_marimba.mp3',
+    '기본 알람': 'sounds/cheerful_marimba.mp3',
+    '마림바': 'sounds/cheerful_marimba.mp3',
+    '실로폰': 'sounds/cheerful_marimba.mp3',
+    '자명종 (클래식 트윈벨)': 'sounds/mechanical_clock.ogg',
+    '자명종': 'sounds/mechanical_clock.ogg',
+    '새소리 (상쾌한 아침)': 'sounds/garden_birds.ogg',
+    '새소리': 'sounds/garden_birds.ogg',
+    '피아노 (포근한 선율)': 'sounds/gentle_piano.mp3',
+    '피아노': 'sounds/gentle_piano.mp3',
+    '디지털 알람 (전자식 비프)': 'sounds/electronic_alarm.ogg',
+    '디지털 알람': 'sounds/electronic_alarm.ogg',
+    '비프음': 'sounds/electronic_alarm.ogg',
+    '클래식 벨': 'sounds/classic_bell.ogg',
+    '벨소리': 'sounds/classic_bell.ogg',
+    '심플 비프': 'sounds/digital_beep.ogg',
+    '전자음': 'sounds/digital_beep.ogg',
+  };
+
   /// 실제 알람 울림 (알람 오디오 스트림 및 반복 재생)
   Future<void> startAlarmRinging({String? soundName, String? customPath}) async {
     try {
@@ -66,6 +86,14 @@ class SoundService {
         return;
       }
 
+      // 2. 실제 저작권 프리 고음질 음원 에셋 재생
+      final assetPath = _presetSoundAssets[selectedSound];
+      if (assetPath != null) {
+        await _alarmPlayer.play(AssetSource(assetPath));
+        return;
+      }
+
+      // 3. 폴백: 신디사이저 PCM 파형
       final wavBytes = _generatePresetWav(selectedSound);
       await _alarmPlayer.play(BytesSource(wavBytes));
     } catch (e) {
@@ -103,7 +131,14 @@ class SoundService {
         return;
       }
 
-      // 2. 프리셋 알림음 합성 사운드 생성 및 재생
+      // 2. 실제 저작권 프리 고음질 음원 에셋 재생
+      final assetPath = _presetSoundAssets[soundName];
+      if (assetPath != null) {
+        await _player.play(AssetSource(assetPath));
+        return;
+      }
+
+      // 3. 프리셋 알림음 합성 사운드 생성 및 재생 (폴백)
       final wavBytes = _generatePresetWav(soundName);
       await _player.play(BytesSource(wavBytes));
     } catch (e) {

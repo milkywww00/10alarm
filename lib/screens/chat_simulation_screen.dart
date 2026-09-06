@@ -55,27 +55,6 @@ class _ChatSimulationScreenState extends State<ChatSimulationScreen> with Single
       if (!mounted) return;
       setState(() {
         _messages.addAll(saved);
-
-        // 푸시 알림 등에서 특정 initialMessage가 전달된 경우에만 추가
-        if (widget.initialMessage != null && widget.initialMessage!.trim().isNotEmpty) {
-          final formattedInitial = MessageFormatter.format(
-            widget.initialMessage!,
-            character: widget.character,
-          );
-
-          if (_messages.isEmpty || _messages.last.text != formattedInitial) {
-            final newInitialMsg = ChatMessage(
-              id: const Uuid().v4(),
-              characterId: widget.character.id,
-              text: formattedInitial,
-              isMe: false,
-              timestamp: DateTime.now(),
-            );
-            _messages.add(newInitialMsg);
-            StorageService.instance.saveChatMessage(newInitialMsg);
-          }
-        }
-
         _isLoading = false;
       });
 

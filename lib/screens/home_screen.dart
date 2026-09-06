@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<AlarmItem> _alarms = [];
   Map<String, CharacterProfile> _charactersMap = {};
   bool _isLoading = true;
+  bool _isBatteryIgnored = true;
 
   @override
   void initState() {
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _initApp() async {
     await PermissionService.instance.requestEssentialPermissions();
+    _isBatteryIgnored = await PermissionService.instance.isBatteryOptimizationIgnored();
     NotificationService.instance.onNotificationTap = _handleNotificationTap;
     await _loadData();
   }
@@ -350,23 +352,63 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    final theme = Theme.of(context);
+
     return RefreshIndicator(
-      onRefresh: _loadData,
-      child: ListView.builder(
+      onRefresh: () async {
+        final status = await PermissionService.instance.isBatteryOptimizationIgnored();
+        if (mounted) setState(() => _isBatteryIgnored = status);
+        await _loadData();
+      },
+      child: ListView(
         padding: const EdgeInsets.only(top: 8, bottom: 80),
-        itemCount: _alarms.length,
-        itemBuilder: (context, index) {
-          final alarm = _alarms[index];
-          final character = _charactersMap[alarm.characterId];
-          return AlarmCard(
-            alarm: alarm,
-            character: character,
-            onToggle: (val) => _toggleAlarm(alarm, val),
-            onTap: () => _navigateToEditAlarm(alarm),
-            onPreview: () => _previewAlarm(alarm),
-            onDelete: () => _deleteAlarm(alarm),
-          );
-        },
+        children: [
+          if (!_isBatteryIgnored)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.battery_alert_rounded, color: Colors.amber.shade800, size: 22),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '앱이 꺼져 있어도 알람이 100% 울리려면\n\'배터리 제한 없음\' 설정이 필요해요.',
+                      style: TextStyle(fontSize: 12, color: Colors.amber.shade900, height: 1.3),
+                    ),
+                  ),
+                  FilledButton.tonal(
+                    onPressed: () async {
+                      await PermissionService.instance.requestIgnoreBatteryOptimization();
+                      final status = await PermissionService.instance.isBatteryOptimizationIgnored();
+                      if (mounted) setState(() => _isBatteryIgnored = status);
+                    },
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                    ),
+                    child: const Text('설정하기', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ),
+          ..._alarms.map((alarm) {
+            final character = _charactersMap[alarm.characterId];
+            return AlarmCard(
+              alarm: alarm,
+              character: character,
+              onToggle: (val) => _toggleAlarm(alarm, val),
+              onTap: () => _navigateToEditAlarm(alarm),
+              onPreview: () => _previewAlarm(alarm),
+              onDelete: () => _deleteAlarm(alarm),
+            );
+          }),
+        ],
       ),
     );
   }
