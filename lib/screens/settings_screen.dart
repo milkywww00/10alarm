@@ -799,8 +799,11 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                         ),
                         const SizedBox(height: 12),
 
-                        // 연결 테스트 버튼 및 결과
-                        Row(
+                        // 연결 테스트 버튼
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             OutlinedButton.icon(
                               onPressed: _isTestingConnection ? null : _testAiConnection,
@@ -813,53 +816,76 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                                   : const Icon(Icons.wifi_tethering_rounded, size: 18),
                               label: const Text('API 연결 테스트'),
                             ),
-                            const SizedBox(width: 12),
-                            if (_testResult != null)
-                              Expanded(
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: _testResult!['success'] == true
-                                        ? Colors.green.shade50
-                                        : Colors.red.shade50,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                      color: _testResult!['success'] == true
-                                          ? Colors.green.shade300
-                                          : Colors.red.shade300,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        _testResult!['success'] == true
-                                            ? Icons.check_circle_rounded
-                                            : Icons.error_outline_rounded,
-                                        size: 16,
-                                        color: _testResult!['success'] == true
-                                            ? Colors.green.shade700
-                                            : Colors.red.shade700,
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          _testResult!['message'] as String,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: _testResult!['success'] == true
-                                                ? Colors.green.shade800
-                                                : Colors.red.shade800,
-                                          ),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
+                        if (_testResult != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _testResult!['success'] == true
+                                  ? Colors.green.shade50
+                                  : Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _testResult!['success'] == true
+                                    ? Colors.green.shade300
+                                    : Colors.red.shade300,
+                              ),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Icon(
+                                  _testResult!['success'] == true
+                                      ? Icons.check_circle_rounded
+                                      : Icons.error_outline_rounded,
+                                  size: 18,
+                                  color: _testResult!['success'] == true
+                                      ? Colors.green.shade700
+                                      : Colors.red.shade700,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _testResult!['message'] as String,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      height: 1.4,
+                                      color: _testResult!['success'] == true
+                                          ? Colors.green.shade800
+                                          : Colors.red.shade800,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                        if (kIsWeb) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.amber.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline_rounded, size: 14, color: Colors.amber.shade900),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    '웹 브라우저에서는 브라우저 보안 정책(CORS)으로 API 직접 호출이 차단될 수 있습니다. 스마트폰 앱(APK)에서는 제한 없이 원활하게 작동합니다.',
+                                    style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
